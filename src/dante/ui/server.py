@@ -1,0 +1,340 @@
+"""Lightweight HTTP server for dante ui.
+
+Serves the single-page app and handles API routes for managing
+connections, credentials, knowledge, and project status.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from functools import partial
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import yaml
+
+from dante.config import (
+    global_dir,
+    knowledge_dir,
+    load_global_connections,
+    load_global_credentials,
+    load_project_config,
+    project_dir,
+    save_global_connections,
+    save_global_credentials,
+    save_project_config,
+)
+from dante.connect import test_connection
+
+_UI_DIR = Path(__file__).parent
+
+
+class DanteUIHandler(SimpleHTTPRequestHandler):
+    """HTTP request handler for the dante UI."""
+
+    def __init__(self, *args, project_root: Path | None = None, **kwargs):
+        self.project_root = project_root or Path.cwd()
+        super().__init__(*args, directory=str(_UI_DIR), **kwargs)
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path == "/" or path == "/index.html":
+            self._serve_app()
+        elif path.startswith("/api/"):
+            self._handle_api_get(path, parsed.query)
+        else:
+            super().do_GET()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path.startswith("/api/"):
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8") if content_length else "{}"
+            try:
+                data = json.loads(body) if body else {}
+            except json.JSONDecodeError:
+                data = {}
+            self._handle_api_post(path, data)
+        else:
+            self.send_error(404)
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path.startswith("/api/"):
+            self._handle_api_delete(path)
+        else:
+            self.send_error(404)
+
+    def _serve_app(self):
+        app_path = _UI_DIR / "app.html"
+        content = app_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _json_response(self, data, status=200):
+        body = json.dumps(data, indent=2, default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _handle_api_get(self, path: str, query: str):
+        if path == "/api/connections":
+            data = load_global_connections()
+            self._json_response(data.get("connections", {}))
+
+        elif path == "/api/credentials":
+            creds = load_global_credentials()
+            # Mask sensitive values
+            masked = {}
+            for key, val in creds.items():
+                if isinstance(val, dict):
+                    masked[key] = {
+                        k: ("****" if "secret" in k.lower() or "password" in k.lower() or "token" in k.lower() else v)
+                        for k, v in val.items()
+                    }
+                else:
+                    masked[key] = val
+            self._json_response(masked)
+
+        elif path == "/api/config":
+            cfg = load_project_config(self.project_root)
+            self._json_response(cfg)
+
+        elif path == "/api/glossary":
+            terms_path = knowledge_dir() / "terms.yaml"
+            if terms_path.exists():
+                with open(terms_path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                self._json_response(data)
+            else:
+                self._json_response({})
+
+        elif path == "/api/keywords":
+            kw_path = knowledge_dir() / "keywords.yaml"
+            if kw_path.exists():
+                with open(kw_path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                self._json_response(data)
+            else:
+                self._json_response({})
+
+        elif path == "/api/notes":
+            notes_path = knowledge_dir() / "notes.md"
+            if notes_path.exists():
+                self._json_response({"content": notes_path.read_text(encoding="utf-8")})
+            else:
+                self._json_response({"content": ""})
+
+        elif path == "/api/patterns":
+            patterns_dir = knowledge_dir() / "patterns"
+            patterns = []
+            if patterns_dir.exists():
+                for f in sorted(patterns_dir.glob("*.sql")):
+                    patterns.append({"name": f.stem, "size": f.stat().st_size})
+            self._json_response(patterns)
+
+        elif path == "/api/status":
+            self._json_response(self._get_status())
+
+        else:
+            self.send_error(404)
+
+    def _handle_api_post(self, path: str, data: dict):
+        if path == "/api/connections":
+            # Save or update a connection
+            name = data.get("name")
+            config = data.get("config", {})
+            if not name:
+                self._json_response({"error": "Connection name required"}, 400)
+                return
+            conns = load_global_connections()
+            conns.setdefault("connections", {})[name] = config
+            save_global_connections(conns)
+            self._json_response({"ok": True, "name": name})
+
+        elif path == "/api/connections/test":
+            config = data.get("config", {})
+            success, message = test_connection(config)
+            self._json_response({"success": success, "message": message})
+
+        elif path == "/api/credentials":
+            creds = load_global_credentials()
+            creds.update(data)
+            save_global_credentials(creds)
+            self._json_response({"ok": True})
+
+        elif path == "/api/config":
+            cfg = load_project_config(self.project_root)
+            cfg.update(data)
+            save_project_config(cfg, self.project_root)
+            self._json_response({"ok": True})
+
+        elif path == "/api/glossary":
+            term = data.get("term")
+            definition = data.get("definition")
+            if not term:
+                self._json_response({"error": "Term required"}, 400)
+                return
+            terms_path = knowledge_dir() / "terms.yaml"
+            terms_path.parent.mkdir(parents=True, exist_ok=True)
+            existing = {}
+            if terms_path.exists():
+                with open(terms_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+            existing[term] = definition
+            with open(terms_path, "w", encoding="utf-8") as f:
+                yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
+            self._json_response({"ok": True})
+
+        elif path == "/api/keywords":
+            keyword = data.get("keyword")
+            content = data.get("content")
+            if not keyword:
+                self._json_response({"error": "Keyword required"}, 400)
+                return
+            kw_path = knowledge_dir() / "keywords.yaml"
+            kw_path.parent.mkdir(parents=True, exist_ok=True)
+            existing = {}
+            if kw_path.exists():
+                with open(kw_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+            existing[keyword] = content
+            with open(kw_path, "w", encoding="utf-8") as f:
+                yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
+            self._json_response({"ok": True})
+
+        elif path == "/api/notes":
+            content = data.get("content", "")
+            notes_path = knowledge_dir() / "notes.md"
+            notes_path.parent.mkdir(parents=True, exist_ok=True)
+            notes_path.write_text(content, encoding="utf-8")
+            self._json_response({"ok": True})
+
+        else:
+            self.send_error(404)
+
+    def _handle_api_delete(self, path: str):
+        if path.startswith("/api/connections/"):
+            name = path.split("/")[-1]
+            conns = load_global_connections()
+            conns.get("connections", {}).pop(name, None)
+            save_global_connections(conns)
+            self._json_response({"ok": True})
+
+        elif path.startswith("/api/glossary/"):
+            term = path.split("/")[-1]
+            terms_path = knowledge_dir() / "terms.yaml"
+            if terms_path.exists():
+                with open(terms_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+                existing.pop(term, None)
+                with open(terms_path, "w", encoding="utf-8") as f:
+                    yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
+            self._json_response({"ok": True})
+
+        elif path.startswith("/api/keywords/"):
+            keyword = path.split("/")[-1]
+            kw_path = knowledge_dir() / "keywords.yaml"
+            if kw_path.exists():
+                with open(kw_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+                existing.pop(keyword, None)
+                with open(kw_path, "w", encoding="utf-8") as f:
+                    yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
+            self._json_response({"ok": True})
+
+        elif path.startswith("/api/patterns/"):
+            filename = path.split("/")[-1]
+            pattern_path = knowledge_dir() / "patterns" / filename
+            if pattern_path.exists():
+                pattern_path.unlink()
+            self._json_response({"ok": True})
+
+        else:
+            self.send_error(404)
+
+    def _get_status(self) -> dict:
+        from dante.config import get_default_connection_name, get_connection_config
+
+        pd = project_dir(self.project_root)
+        conn_name = get_default_connection_name(self.project_root)
+        conn_config = get_connection_config(root=self.project_root)
+
+        # Count knowledge (global knowledge dir shared across all projects)
+        kd = knowledge_dir()
+        terms_count = 0
+        keywords_count = 0
+        patterns_count = 0
+
+        terms_file = kd / "terms.yaml"
+        if terms_file.exists():
+            with open(terms_file, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            terms_count = len(data)
+
+        kw_file = kd / "keywords.yaml"
+        if kw_file.exists():
+            with open(kw_file, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            keywords_count = len(data)
+
+        patterns_dir = kd / "patterns"
+        if patterns_dir.exists():
+            patterns_count = len(list(patterns_dir.glob("*.sql")))
+
+        embeddings_count = 0
+        embeddings_db = kd / "embeddings.db"
+        if embeddings_db.exists():
+            import sqlite3
+            try:
+                conn = sqlite3.connect(str(embeddings_db))
+                cur = conn.execute("SELECT COUNT(*) FROM embeddings")
+                embeddings_count = cur.fetchone()[0]
+                conn.close()
+            except Exception:
+                pass
+
+        return {
+            "connection": {
+                "name": conn_name,
+                "configured": conn_config is not None,
+                "dialect": conn_config.get("dialect") if conn_config else None,
+                "database": conn_config.get("database") if conn_config else None,
+            },
+            "knowledge": {
+                "glossary_terms": terms_count,
+                "keywords": keywords_count,
+                "patterns": patterns_count,
+                "embeddings": embeddings_count,
+            },
+        }
+
+    def log_message(self, format, *args):
+        """Suppress default request logging."""
+        pass
+
+
+def run_server(port: int = 4200, project_root: Path | None = None):
+    """Run the dante UI server."""
+    root = project_root or Path.cwd()
+    handler = partial(DanteUIHandler, project_root=root)
+    server = HTTPServer(("127.0.0.1", port), handler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()

@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dante &mdash; Management UI</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0d0d0d;--card:#171717;--accent:#de2626;--text:#ececec;
+    --highlight:#de2626;--danger:#ef4444;--success:#4ade80;--warn:#ffc107;
+    --input-bg:#1a1a1a;--input-border:#424242;--radius:6px;
+    --border:#333;--text-secondary:#8e8e8e;--text-muted:#6b6b6b;
+    --bg-tertiary:#2f2f2f;--accent-dark:#8f0b0b;
+    --mono:'SFMono-Regular','Cascadia Code','Consolas','Liberation Mono','Menlo',monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5}
+  body{display:flex;flex-direction:column;overflow:hidden}
+
+  /* ── Header ── */
+  header{display:flex;align-items:center;gap:12px;padding:12px 24px;background:var(--card);border-bottom:1px solid var(--accent)}
+  header .logo{font-size:20px;font-weight:700;letter-spacing:1px;color:var(--highlight);font-family:var(--mono)}
+  header .subtitle{font-size:12px;color:#8899aa;margin-left:4px}
+
+  /* ── Tabs ── */
+  nav.tabs{display:flex;gap:2px;padding:0 24px;background:var(--card);border-bottom:1px solid var(--accent)}
+  nav.tabs button{
+    background:transparent;border:none;color:#8899aa;font-size:13px;font-weight:600;
+    padding:10px 18px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;
+    font-family:var(--sans);letter-spacing:.3px;
+  }
+  nav.tabs button:hover{color:var(--text)}
+  nav.tabs button.active{color:var(--highlight);border-bottom-color:var(--highlight)}
+
+  /* ── Main ── */
+  main{flex:1;overflow-y:auto;padding:24px}
+  .tab-panel{display:none;max-width:900px;margin:0 auto}
+  .tab-panel.active{display:block}
+
+  /* ── Cards ── */
+  .card{background:var(--card);border:1px solid var(--accent);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+  .card h2{font-size:15px;font-weight:600;margin-bottom:14px;color:var(--highlight);letter-spacing:.3px}
+  .card h3{font-size:13px;font-weight:600;margin-bottom:10px;color:#8899aa;text-transform:uppercase;letter-spacing:.5px}
+
+  /* ── Forms ── */
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .form-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+  .form-group{display:flex;flex-direction:column;gap:4px}
+  .form-group.full{grid-column:1/-1}
+  label{font-size:12px;font-weight:600;color:#8899aa;letter-spacing:.3px}
+  input,select,textarea{
+    background:var(--input-bg);border:1px solid var(--input-border);border-radius:4px;
+    color:var(--text);padding:8px 10px;font-size:13px;font-family:var(--sans);
+    outline:none;transition:border-color .15s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--highlight)}
+  textarea{resize:vertical;min-height:120px;font-family:var(--mono);font-size:12px;line-height:1.6}
+  select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238899aa' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+  select option{background:var(--input-bg);color:var(--text)}
+
+  /* ── Buttons ── */
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:4px;
+    font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:var(--sans);
+  }
+  .btn-primary{background:var(--highlight);color:#fff}
+  .btn-primary:hover{background:#ef4444}
+  .btn-secondary{background:var(--accent);color:var(--text)}
+  .btn-secondary:hover{background:#2f2f2f}
+  .btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger);padding:6px 12px;font-size:12px}
+  .btn-danger:hover{background:var(--danger);color:#fff}
+  .btn-sm{padding:5px 10px;font-size:12px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-row{display:flex;gap:8px;margin-top:14px}
+
+  /* ── Lists ── */
+  .item-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+  .item-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:4px;
+  }
+  .item-row .item-label{font-size:13px;font-weight:500}
+  .item-row .item-meta{font-size:11px;color:#8899aa;font-family:var(--mono)}
+  .item-row .item-info{display:flex;flex-direction:column;gap:2px}
+
+  /* ── Inline add form ── */
+  .inline-add{display:flex;gap:8px;margin-top:10px}
+  .inline-add input{flex:1}
+
+  /* ── Status indicators ── */
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  .status-dot.green{background:var(--success)}
+  .status-dot.red{background:var(--danger)}
+  .status-dot.yellow{background:var(--warn)}
+
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+  .stat-box{
+    background:var(--input-bg);border:1px solid var(--input-border);border-radius:var(--radius);
+    padding:14px;text-align:center;
+  }
+  .stat-box .stat-value{font-size:28px;font-weight:700;color:var(--highlight);font-family:var(--mono)}
+  .stat-box .stat-label{font-size:11px;color:#8899aa;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+
+  /* ── Toast ── */
+  #toast-container{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+  .toast{
+    padding:10px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;
+    animation:toast-in .25s ease-out;min-width:260px;max-width:400px;
+    box-shadow:0 4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;
+  }
+  .toast.success{background:#14532d;border:1px solid var(--success);color:var(--success)}
+  .toast.error{background:#7f1d1d;border:1px solid var(--danger);color:var(--danger)}
+  .toast.info{background:#2f2f2f;border:1px solid var(--highlight);color:var(--highlight)}
+  .toast.fade-out{animation:toast-out .25s ease-in forwards}
+  @keyframes toast-in{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+  @keyframes toast-out{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(40px)}}
+
+  /* ── Misc ── */
+  .empty-state{text-align:center;padding:30px;color:#556677;font-size:13px}
+  .divider{border:none;border-top:1px solid var(--accent);margin:16px 0}
+  .masked{font-family:var(--mono);letter-spacing:2px}
+  code{font-family:var(--mono);font-size:12px;background:var(--input-bg);padding:2px 6px;border-radius:3px}
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar{width:8px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#555}
+
+  /* ── Knowledge inner tabs ── */
+  .k-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
+  .k-tab{
+    background:transparent;border:none;border-bottom:2px solid transparent;
+    color:var(--text-secondary);font-size:12px;font-weight:600;padding:8px 16px;
+    cursor:pointer;font-family:var(--sans);letter-spacing:.3px;transition:all .15s;
+    margin-bottom:-1px;
+  }
+  .k-tab:hover{color:var(--text)}
+  .k-tab.active{color:var(--highlight);border-bottom-color:var(--highlight)}
+  .k-panel{display:none}.k-panel.active{display:block}
+
+  /* ── Knowledge item list ── */
+  .k-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+  .k-item{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+    padding:10px 12px;background:var(--input-bg);border:1px solid var(--input-border);
+    border-radius:4px;
+  }
+  .k-item-body{flex:1;min-width:0}
+  .k-item-title{font-size:13px;font-weight:600;color:var(--highlight);font-family:var(--mono);margin-bottom:2px}
+  .k-item-text{font-size:12px;color:var(--text-secondary);line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .k-item-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+  .k-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+  .k-icon-btn{
+    background:transparent;border:none;color:var(--text-muted);cursor:pointer;
+    padding:4px 6px;border-radius:3px;font-size:14px;line-height:1;transition:all .15s;
+  }
+  .k-icon-btn:hover{color:var(--text);background:var(--bg-tertiary)}
+  .k-icon-btn.danger:hover{color:var(--danger);background:rgba(239,68,68,.1)}
+
+  /* ── Knowledge add button ── */
+  .k-add-btn{
+    display:inline-flex;align-items:center;gap:6px;padding:6px 14px;
+    border:1px dashed var(--border);border-radius:4px;background:transparent;
+    color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;
+    font-family:var(--sans);transition:all .15s;
+  }
+  .k-add-btn:hover{border-color:var(--highlight);color:var(--highlight);background:rgba(222,38,38,.05)}
+
+  /* ── Knowledge inline form ── */
+  .k-form{
+    background:var(--input-bg);border:1px solid var(--highlight);border-radius:4px;
+    padding:12px;margin-top:10px;display:flex;flex-direction:column;gap:8px;
+  }
+  .k-form input,.k-form textarea{width:100%;background:var(--bg);border:1px solid var(--input-border);border-radius:4px;color:var(--text);padding:7px 10px;font-size:13px;font-family:var(--sans);outline:none}
+  .k-form input:focus,.k-form textarea:focus{border-color:var(--highlight)}
+  .k-form textarea{resize:vertical;min-height:80px;font-family:var(--mono);font-size:12px;line-height:1.6}
+  .k-form-row{display:flex;gap:8px}
+  .k-btn-save{background:var(--highlight);color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .k-btn-save:hover{background:#ef4444}
+  .k-btn-cancel{background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:4px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .k-btn-cancel:hover{color:var(--text);border-color:var(--text-secondary)}
+
+  /* ── Knowledge empty state ── */
+  .k-empty{padding:24px;text-align:center;color:var(--text-muted);font-size:13px}
+
+  /* ── Knowledge search bar ── */
+  .k-search{display:flex;gap:8px;margin-bottom:4px}
+  .k-search input{flex:1;background:var(--input-bg);border:1px solid var(--input-border);border-radius:4px;color:var(--text);padding:7px 10px;font-size:13px;font-family:var(--sans);outline:none}
+  .k-search input:focus{border-color:var(--highlight)}
+  .k-search button{background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .k-search button:hover{color:var(--text)}
+
+  /* ── Connection form edit mode ── */
+  .conn-form-title{display:flex;align-items:center;justify-content:space-between}
+  .conn-form-title .edit-badge{font-size:11px;background:var(--warn);color:#0d0d0d;padding:2px 8px;border-radius:3px;font-weight:700}
+
+  /* ── Loading spinner ── */
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--accent);border-top-color:var(--highlight);border-radius:50%;animation:spin .6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">DANTE</span>
+  <span class="subtitle">Data & Analytics Toolkit</span>
+</header>
+
+<nav class="tabs" id="tab-nav">
+  <button class="active" data-tab="connections">Connections</button>
+  <button data-tab="credentials">Credentials</button>
+  <button data-tab="knowledge">Knowledge</button>
+  <button data-tab="status">Status</button>
+  <button data-tab="config">Config</button>
+</nav>
+
+<main>
+  <!-- ═══════════════════ CONNECTIONS TAB ═══════════════════ -->
+  <div class="tab-panel active" id="panel-connections">
+    <div class="card">
+      <div class="conn-form-title">
+        <h2 id="conn-form-heading">Add Connection</h2>
+        <span id="conn-edit-badge" class="edit-badge" style="display:none">EDITING</span>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="conn-name">Name</label>
+          <input type="text" id="conn-name" placeholder="my_database">
+        </div>
+        <div class="form-group">
+          <label for="conn-dialect">Dialect</label>
+          <select id="conn-dialect">
+            <option value="">Select dialect...</option>
+            <option value="postgresql">PostgreSQL</option>
+            <option value="snowflake">Snowflake</option>
+            <option value="databricks">Databricks</option>
+            <option value="bigquery">BigQuery</option>
+            <option value="mysql">MySQL</option>
+            <option value="sqlite">SQLite</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="conn-host">Host</label>
+          <input type="text" id="conn-host" placeholder="localhost">
+        </div>
+        <div class="form-group">
+          <label for="conn-port">Port</label>
+          <input type="text" id="conn-port" placeholder="5432">
+        </div>
+        <div class="form-group">
+          <label for="conn-database">Database</label>
+          <input type="text" id="conn-database" placeholder="mydb">
+        </div>
+        <div class="form-group">
+          <label for="conn-schema">Schema</label>
+          <input type="text" id="conn-schema" placeholder="public">
+        </div>
+        <div class="form-group">
+          <label for="conn-user">User</label>
+          <input type="text" id="conn-user" placeholder="username">
+        </div>
+        <div class="form-group">
+          <label for="conn-password-env">Password Env Var</label>
+          <input type="text" id="conn-password-env" placeholder="DB_PASSWORD">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveConnection()">Save Connection</button>
+        <button class="btn btn-secondary" onclick="testConnection()">Test Connection</button>
+        <button class="btn btn-secondary" id="conn-cancel-btn" style="display:none" onclick="cancelEditConnection()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Saved Connections</h2>
+      <div id="connections-list">
+        <div class="empty-state">No connections configured yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ CREDENTIALS TAB ═══════════════════ -->
+  <div class="tab-panel" id="panel-credentials">
+    <div class="card">
+      <h2>Looker Credentials</h2>
+      <div class="form-grid cols-3">
+        <div class="form-group full">
+          <label for="cred-looker-url">Base URL</label>
+          <input type="text" id="cred-looker-url" placeholder="https://mycompany.looker.com:19999">
+        </div>
+        <div class="form-group">
+          <label for="cred-looker-id">Client ID</label>
+          <input type="text" id="cred-looker-id" placeholder="client_id">
+        </div>
+        <div class="form-group">
+          <label for="cred-looker-secret">Client Secret</label>
+          <input type="password" id="cred-looker-secret" placeholder="client_secret">
+        </div>
+        <div class="form-group" style="align-self:end">
+          <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show/Hide</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Databricks Credentials</h2>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label for="cred-dbx-url">Workspace URL</label>
+          <input type="text" id="cred-dbx-url" placeholder="https://dbc-xxxxx.cloud.databricks.com">
+        </div>
+        <div class="form-group">
+          <label for="cred-dbx-token">Token</label>
+          <input type="password" id="cred-dbx-token" placeholder="dapi...">
+        </div>
+        <div class="form-group" style="align-self:end">
+          <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show/Hide</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="max-width:900px;margin:0 auto">
+      <button class="btn btn-primary" onclick="saveCredentials()">Save Credentials</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ KNOWLEDGE TAB ═══════════════════ -->
+  <div class="tab-panel" id="panel-knowledge">
+    <div class="card">
+      <div class="k-tabs">
+        <button class="k-tab active" data-ktab="notes">Notes</button>
+        <button class="k-tab" data-ktab="glossary">Glossary</button>
+        <button class="k-tab" data-ktab="keywords">Keywords</button>
+        <button class="k-tab" data-ktab="patterns">Patterns</button>
+      </div>
+
+      <!-- Notes -->
+      <div class="k-panel active" id="kpanel-notes">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Free-form context always injected into Claude's memory — business rules, data quirks, conventions.</p>
+        <textarea id="knowledge-notes" rows="12" placeholder="e.g. Revenue is always net of refunds. The orders table only contains completed orders..."></textarea>
+        <div class="k-form-row" style="margin-top:10px">
+          <button class="k-btn-save" onclick="saveNotes()">Save Notes</button>
+        </div>
+      </div>
+
+      <!-- Glossary -->
+      <div class="k-panel" id="kpanel-glossary">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Domain terms and their canonical definitions. Claude uses these to interpret queries correctly.</p>
+        <button class="k-add-btn" id="glossary-add-btn" onclick="kShowForm('glossary')">+ Add Term</button>
+        <div class="k-form" id="glossary-form" style="display:none">
+          <input type="text" id="glossary-term" placeholder="Term (e.g. ARR)">
+          <input type="text" id="glossary-def" placeholder="Definition (e.g. Annual Recurring Revenue = MRR × 12)">
+          <div class="k-form-row">
+            <button class="k-btn-save" onclick="addGlossaryTerm()">Save</button>
+            <button class="k-btn-cancel" onclick="kHideForm('glossary')">Cancel</button>
+          </div>
+        </div>
+        <div id="glossary-list" class="k-list">
+          <div class="k-empty">No glossary terms defined yet.</div>
+        </div>
+      </div>
+
+      <!-- Keywords -->
+      <div class="k-panel" id="kpanel-keywords">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">When a keyword appears in a query, its content is injected as context. Use for metrics, column names, or SQL snippets.</p>
+        <button class="k-add-btn" id="keywords-add-btn" onclick="kShowForm('keywords')">+ Add Keyword</button>
+        <div class="k-form" id="keywords-form" style="display:none">
+          <input type="text" id="keyword-key" placeholder="Keyword trigger (e.g. churn)">
+          <textarea id="keyword-content" placeholder="Context to inject when keyword appears (e.g. Churn = canceled_at IS NOT NULL AND...)"></textarea>
+          <div class="k-form-row">
+            <button class="k-btn-save" onclick="addKeyword()">Save</button>
+            <button class="k-btn-cancel" onclick="kHideForm('keywords')">Cancel</button>
+          </div>
+        </div>
+        <div id="keywords-list" class="k-list">
+          <div class="k-empty">No keywords defined yet.</div>
+        </div>
+      </div>
+
+      <!-- Patterns -->
+      <div class="k-panel" id="kpanel-patterns">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Saved SQL patterns Claude surfaces when answering similar questions. Added via <code>dante_save_pattern</code>.</p>
+        <div class="k-search">
+          <input type="text" id="pattern-search" placeholder="Search patterns...">
+          <button onclick="filterPatterns()">Search</button>
+          <button onclick="clearPatternSearch()">Clear</button>
+        </div>
+        <div id="patterns-list" class="k-list">
+          <div class="k-empty">No patterns saved yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ STATUS TAB ═══════════════════ -->
+  <div class="tab-panel" id="panel-status">
+    <div class="card">
+      <h2>Status</h2>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">A snapshot of what dante knows right now — your active database connection and accumulated knowledge.</p>
+      <div id="status-content">
+        <div class="empty-state"><span class="spinner"></span> Loading status...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ CONFIG TAB ═══════════════════ -->
+  <div class="tab-panel" id="panel-config">
+    <div class="card">
+      <h2>Project Config</h2>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">Settings stored in <code>.dante/config.yaml</code> for this project. The default connection tells Claude which database to query when you don't specify one.</p>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="config-default-conn">Default Connection</label>
+          <select id="config-default-conn">
+            <option value="">None</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveConfig()">Save Config</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast-container"></div>
+
+<script>
+/* ──────────────────────────────────────────────────────────
+   STATE
+   ────────────────────────────────────────────────────────── */
+let connections = [];
+let editingConnectionName = null;
+
+/* ──────────────────────────────────────────────────────────
+   HELPERS
+   ────────────────────────────────────────────────────────── */
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const j = await res.json(); msg = j.detail || j.error || msg; } catch(_) {}
+    throw new Error(msg);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+/* ── Toast ── */
+function toast(message, type) {
+  type = type || 'info';
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  const icons = { success: '\u2713', error: '\u2717', info: '\u2139' };
+  el.innerHTML = '<strong>' + (icons[type] || '') + '</strong> ' + esc(message);
+  const container = $('#toast-container');
+  container.appendChild(el);
+  setTimeout(function() {
+    el.classList.add('fade-out');
+    setTimeout(function() { el.remove(); }, 250);
+  }, 3500);
+}
+
+function toggleMask(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+/* ──────────────────────────────────────────────────────────
+   TABS
+   ────────────────────────────────────────────────────────── */
+$('#tab-nav').addEventListener('click', function(e) {
+  if (e.target.tagName !== 'BUTTON') return;
+  $$('#tab-nav button').forEach(function(b) { b.classList.remove('active'); });
+  e.target.classList.add('active');
+  $$('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+  $('#panel-' + e.target.dataset.tab).classList.add('active');
+
+  // Lazy-load data for the tab
+  var tab = e.target.dataset.tab;
+  if (tab === 'status') loadStatus();
+  if (tab === 'knowledge') { loadNotes(); loadGlossary(); loadKeywords(); loadPatterns(); }
+  if (tab === 'credentials') loadCredentials();
+  if (tab === 'config') loadConfig();
+  if (tab === 'connections') loadConnections();
+});
+
+/* ──────────────────────────────────────────────────────────
+   CONNECTIONS
+   ────────────────────────────────────────────────────────── */
+function getConnFormData() {
+  return {
+    name:         $('#conn-name').value.trim(),
+    dialect:      $('#conn-dialect').value,
+    host:         $('#conn-host').value.trim(),
+    port:         $('#conn-port').value.trim(),
+    database:     $('#conn-database').value.trim(),
+    schema:       $('#conn-schema').value.trim(),
+    user:         $('#conn-user').value.trim(),
+    password_env: $('#conn-password-env').value.trim()
+  };
+}
+
+function clearConnForm() {
+  ['conn-name','conn-dialect','conn-host','conn-port','conn-database','conn-schema','conn-user','conn-password-env'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = '';
+  });
+  editingConnectionName = null;
+  $('#conn-form-heading').textContent = 'Add Connection';
+  $('#conn-edit-badge').style.display = 'none';
+  $('#conn-cancel-btn').style.display = 'none';
+  $('#conn-name').removeAttribute('readonly');
+}
+
+function editConnection(name) {
+  var conn = connections.find(function(c) { return c.name === name; });
+  if (!conn) return;
+  editingConnectionName = name;
+  $('#conn-name').value = conn.name || '';
+  $('#conn-dialect').value = conn.dialect || '';
+  $('#conn-host').value = conn.host || '';
+  $('#conn-port').value = conn.port || '';
+  $('#conn-database').value = conn.database || '';
+  $('#conn-schema').value = conn.schema || '';
+  $('#conn-user').value = conn.user || '';
+  $('#conn-password-env').value = conn.password_env || '';
+  $('#conn-form-heading').textContent = 'Edit Connection';
+  $('#conn-edit-badge').style.display = 'inline';
+  $('#conn-cancel-btn').style.display = 'inline-flex';
+  $('#conn-name').setAttribute('readonly', 'readonly');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEditConnection() {
+  clearConnForm();
+}
+
+async function saveConnection() {
+  var data = getConnFormData();
+  if (!data.name) { toast('Connection name is required.', 'error'); return; }
+  if (!data.dialect) { toast('Dialect is required.', 'error'); return; }
+  try {
+    await api('POST', '/api/connections', data);
+    toast('Connection "' + data.name + '" saved.', 'success');
+    clearConnForm();
+    loadConnections();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+async function testConnection() {
+  var data = getConnFormData();
+  if (!data.dialect) { toast('Select a dialect first.', 'error'); return; }
+  try {
+    var result = await api('POST', '/api/connections/test', data);
+    if (result && result.success) {
+      toast('Connection test successful!', 'success');
+    } else {
+      toast('Connection test failed: ' + (result && result.error ? result.error : 'Unknown error'), 'error');
+    }
+  } catch (e) {
+    toast('Connection test failed: ' + e.message, 'error');
+  }
+}
+
+async function deleteConnection(name) {
+  if (!confirm('Delete connection "' + name + '"?')) return;
+  try {
+    await api('DELETE', '/api/connections/' + encodeURIComponent(name));
+    toast('Connection "' + name + '" deleted.', 'success');
+    loadConnections();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function renderConnections() {
+  var list = $('#connections-list');
+  if (!connections || connections.length === 0) {
+    list.innerHTML = '<div class="empty-state">No connections configured yet.</div>';
+    return;
+  }
+  var html = '<div class="item-list">';
+  connections.forEach(function(c) {
+    var dialectBadge = c.dialect ? '<code>' + esc(c.dialect) + '</code>' : '';
+    var hostInfo = c.host ? esc(c.host) + (c.port ? ':' + esc(c.port) : '') : '';
+    var dbInfo = c.database ? '/' + esc(c.database) : '';
+    var schemaInfo = c.schema ? ' (' + esc(c.schema) + ')' : '';
+    html += '<div class="item-row">'
+      + '<div class="item-info">'
+      + '  <span class="item-label">' + esc(c.name) + ' ' + dialectBadge + '</span>'
+      + '  <span class="item-meta">' + hostInfo + dbInfo + schemaInfo + '</span>'
+      + '</div>'
+      + '<div style="display:flex;gap:6px">'
+      + '  <button class="btn btn-sm btn-secondary" onclick="editConnection(\'' + esc(c.name).replace(/'/g, "\\'") + '\')">Edit</button>'
+      + '  <button class="btn btn-sm btn-danger" onclick="deleteConnection(\'' + esc(c.name).replace(/'/g, "\\'") + '\')">Delete</button>'
+      + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  list.innerHTML = html;
+}
+
+async function loadConnections() {
+  try {
+    var data = await api('GET', '/api/connections');
+    connections = Array.isArray(data) ? data : (data && data.connections ? data.connections : []);
+    renderConnections();
+    populateConnectionDropdown();
+  } catch (e) {
+    connections = [];
+    renderConnections();
+  }
+}
+
+function populateConnectionDropdown() {
+  var sel = $('#config-default-conn');
+  var current = sel.value;
+  sel.innerHTML = '<option value="">None</option>';
+  connections.forEach(function(c) {
+    var opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+  sel.value = current;
+}
+
+/* ──────────────────────────────────────────────────────────
+   CREDENTIALS
+   ────────────────────────────────────────────────────────── */
+async function loadCredentials() {
+  try {
+    var data = await api('GET', '/api/credentials');
+    if (data) {
+      if (data.looker) {
+        $('#cred-looker-url').value = data.looker.base_url || '';
+        $('#cred-looker-id').value = data.looker.client_id || '';
+        $('#cred-looker-secret').value = data.looker.client_secret || '';
+      }
+      if (data.databricks) {
+        $('#cred-dbx-url').value = data.databricks.workspace_url || '';
+        $('#cred-dbx-token').value = data.databricks.token || '';
+      }
+    }
+  } catch (_) {}
+}
+
+async function saveCredentials() {
+  var payload = {
+    looker: {
+      base_url:      $('#cred-looker-url').value.trim(),
+      client_id:     $('#cred-looker-id').value.trim(),
+      client_secret: $('#cred-looker-secret').value.trim()
+    },
+    databricks: {
+      workspace_url: $('#cred-dbx-url').value.trim(),
+      token:         $('#cred-dbx-token').value.trim()
+    }
+  };
+  try {
+    await api('POST', '/api/credentials', payload);
+    toast('Credentials saved.', 'success');
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   KNOWLEDGE — Inner tab switching
+   ────────────────────────────────────────────────────────── */
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.k-tab');
+  if (!btn) return;
+  var card = btn.closest('.card');
+  card.querySelectorAll('.k-tab').forEach(function(t) { t.classList.remove('active'); });
+  card.querySelectorAll('.k-panel').forEach(function(p) { p.classList.remove('active'); });
+  btn.classList.add('active');
+  var panel = card.querySelector('#kpanel-' + btn.dataset.ktab);
+  if (panel) panel.classList.add('active');
+});
+
+function kShowForm(name) {
+  document.getElementById(name + '-form').style.display = 'flex';
+  document.getElementById(name + '-add-btn').style.display = 'none';
+}
+function kHideForm(name) {
+  document.getElementById(name + '-form').style.display = 'none';
+  document.getElementById(name + '-add-btn').style.display = 'inline-flex';
+}
+
+/* ──────────────────────────────────────────────────────────
+   KNOWLEDGE — Notes
+   ────────────────────────────────────────────────────────── */
+async function loadNotes() {
+  try {
+    var data = await api('GET', '/api/notes');
+    $('#knowledge-notes').value = (data && data.content != null) ? data.content : '';
+  } catch (_) {}
+}
+
+async function saveNotes() {
+  try {
+    await api('POST', '/api/notes', { content: $('#knowledge-notes').value });
+    toast('Notes saved.', 'success');
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   KNOWLEDGE — Glossary
+   API returns { term: definition, ... } dict
+   ────────────────────────────────────────────────────────── */
+var glossaryTerms = {};
+
+async function loadGlossary() {
+  try {
+    var data = await api('GET', '/api/glossary');
+    glossaryTerms = (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+    renderGlossary();
+  } catch (_) {
+    glossaryTerms = {};
+    renderGlossary();
+  }
+}
+
+function renderGlossary() {
+  var list = $('#glossary-list');
+  var entries = Object.entries(glossaryTerms);
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="k-empty">No glossary terms defined yet. Add acronyms, definitions, or business concepts.</div>';
+    return;
+  }
+  var html = '';
+  entries.sort(function(a, b) { return a[0].localeCompare(b[0]); }).forEach(function(e) {
+    var term = e[0], def = e[1] || '';
+    html += '<div class="k-item">'
+      + '<div class="k-item-body">'
+      + '  <div class="k-item-title">' + esc(term) + '</div>'
+      + (def ? '<div class="k-item-text">' + esc(def) + '</div>' : '')
+      + '</div>'
+      + '<div class="k-actions">'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteGlossaryTerm(' + JSON.stringify(term) + ')">&#10005;</button>'
+      + '</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function addGlossaryTerm() {
+  var term = $('#glossary-term').value.trim();
+  var def = $('#glossary-def').value.trim();
+  if (!term) { toast('Term is required.', 'error'); return; }
+  try {
+    await api('POST', '/api/glossary', { term: term, definition: def });
+    toast('Term added.', 'success');
+    $('#glossary-term').value = '';
+    $('#glossary-def').value = '';
+    kHideForm('glossary');
+    loadGlossary();
+  } catch (e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+async function deleteGlossaryTerm(term) {
+  if (!confirm('Delete "' + term + '"?')) return;
+  try {
+    await api('DELETE', '/api/glossary/' + encodeURIComponent(term));
+    toast('Term deleted.', 'success');
+    loadGlossary();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   KNOWLEDGE — Keywords
+   API returns { keyword: content, ... } dict
+   ────────────────────────────────────────────────────────── */
+var keywordsData = {};
+
+async function loadKeywords() {
+  try {
+    var data = await api('GET', '/api/keywords');
+    keywordsData = (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+    renderKeywords();
+  } catch (_) {
+    keywordsData = {};
+    renderKeywords();
+  }
+}
+
+function renderKeywords() {
+  var list = $('#keywords-list');
+  var entries = Object.entries(keywordsData);
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="k-empty">No keywords defined yet. Add triggers to inject context into the agent.</div>';
+    return;
+  }
+  var html = '';
+  entries.sort(function(a, b) { return a[0].localeCompare(b[0]); }).forEach(function(e) {
+    var kw = e[0], content = e[1] || '';
+    html += '<div class="k-item">'
+      + '<div class="k-item-body">'
+      + '  <div class="k-item-title">' + esc(kw) + '</div>'
+      + (content ? '<div class="k-item-text">' + esc(content) + '</div>' : '')
+      + '</div>'
+      + '<div class="k-actions">'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteKeyword(' + JSON.stringify(kw) + ')">&#10005;</button>'
+      + '</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function addKeyword() {
+  var kw = $('#keyword-key').value.trim();
+  var content = $('#keyword-content').value.trim();
+  if (!kw) { toast('Keyword is required.', 'error'); return; }
+  try {
+    await api('POST', '/api/keywords', { keyword: kw, content: content });
+    toast('Keyword added.', 'success');
+    $('#keyword-key').value = '';
+    $('#keyword-content').value = '';
+    kHideForm('keywords');
+    loadKeywords();
+  } catch (e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+async function deleteKeyword(kw) {
+  if (!confirm('Delete keyword "' + kw + '"?')) return;
+  try {
+    await api('DELETE', '/api/keywords/' + encodeURIComponent(kw));
+    toast('Keyword deleted.', 'success');
+    loadKeywords();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   KNOWLEDGE — Patterns
+   ────────────────────────────────────────────────────────── */
+async function loadPatterns() {
+  try {
+    var data = await api('GET', '/api/patterns');
+    allPatterns = Array.isArray(data) ? data : [];
+    renderPatterns(allPatterns);
+  } catch (_) {
+    allPatterns = [];
+    renderPatterns([]);
+  }
+}
+
+var allPatterns = [];
+
+function filterPatterns() {
+  var q = ($('#pattern-search').value || '').toLowerCase();
+  var filtered = q ? allPatterns.filter(function(p) {
+    var name = (p.name || p.filename || '').toLowerCase();
+    var q2 = (p.question || '').toLowerCase();
+    return name.indexOf(q) !== -1 || q2.indexOf(q) !== -1;
+  }) : allPatterns;
+  renderPatterns(filtered);
+}
+
+function clearPatternSearch() {
+  $('#pattern-search').value = '';
+  renderPatterns(allPatterns);
+}
+
+function renderPatterns(patterns) {
+  var list = $('#patterns-list');
+  if (!patterns || patterns.length === 0) {
+    list.innerHTML = '<div class="k-empty">No patterns saved yet. Use <code>dante_save_pattern</code> in Claude to save SQL patterns.</div>';
+    return;
+  }
+  var html = '';
+  patterns.forEach(function(p) {
+    var name = p.name || p.filename || '';
+    var filename = name.endsWith('.sql') ? name : name + '.sql';
+    var question = p.question || name;
+    var size = p.size != null ? ((p.size / 1024).toFixed(1) + ' KB') : '';
+    html += '<div class="k-item">'
+      + '<div class="k-item-body">'
+      + '  <div class="k-item-title">' + esc(question) + '</div>'
+      + '  <div class="k-item-meta">' + esc(filename) + (size ? ' &middot; ' + esc(size) : '') + '</div>'
+      + '</div>'
+      + '<div class="k-actions">'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deletePattern(' + JSON.stringify(filename) + ')">&#10005;</button>'
+      + '</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function deletePattern(filename) {
+  if (!confirm('Delete pattern "' + filename + '"?')) return;
+  try {
+    await api('DELETE', '/api/patterns/' + encodeURIComponent(filename));
+    toast('Pattern deleted.', 'success');
+    loadPatterns();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   STATUS
+   ────────────────────────────────────────────────────────── */
+async function loadStatus() {
+  var container = $('#status-content');
+  container.innerHTML = '<div class="empty-state"><span class="spinner"></span> Loading status...</div>';
+  try {
+    var data = await api('GET', '/api/status');
+    renderStatus(data);
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state">Failed to load status: ' + esc(e.message) + '</div>';
+  }
+}
+
+function renderStatus(data) {
+  var container = $('#status-content');
+  if (!data) { container.innerHTML = '<div class="empty-state">No status data available.</div>'; return; }
+
+  var html = '';
+
+  // Connection info
+  var conns = data.connections || [];
+  var connCount = typeof conns === 'number' ? conns : (Array.isArray(conns) ? conns.length : 0);
+  var defaultConn = data.default_connection || data.config && data.config.default_connection || '';
+
+  // Knowledge stats
+  var glossaryCount = data.glossary_count != null ? data.glossary_count : (data.glossary ? (Array.isArray(data.glossary) ? data.glossary.length : data.glossary) : '?');
+  var keywordsCount = data.keywords_count != null ? data.keywords_count : (data.keywords ? (Array.isArray(data.keywords) ? data.keywords.length : data.keywords) : '?');
+  var notesLen = data.notes_length != null ? data.notes_length : (data.notes ? (typeof data.notes === 'string' ? data.notes.length : data.notes) : '?');
+
+  // Credential status
+  var lookerOk = data.looker_configured || (data.credentials && data.credentials.looker);
+  var dbxOk = data.databricks_configured || (data.credentials && data.credentials.databricks);
+
+  html += '<div class="stat-grid">';
+  html += '<div class="stat-box"><div class="stat-value">' + esc(connCount) + '</div><div class="stat-label">Connections</div></div>';
+  html += '<div class="stat-box"><div class="stat-value">' + esc(glossaryCount) + '</div><div class="stat-label">Glossary Terms</div></div>';
+  html += '<div class="stat-box"><div class="stat-value">' + esc(keywordsCount) + '</div><div class="stat-label">Keywords</div></div>';
+  html += '<div class="stat-box"><div class="stat-value">' + esc(notesLen) + '</div><div class="stat-label">Notes (chars)</div></div>';
+  html += '</div>';
+
+  html += '<hr class="divider">';
+  html += '<h3 style="margin-bottom:10px;font-size:13px;color:#8899aa;text-transform:uppercase;letter-spacing:.5px">Integration Status</h3>';
+
+  html += '<div class="item-list">';
+  // Default connection
+  html += '<div class="item-row"><span class="item-label">'
+    + '<span class="status-dot ' + (defaultConn ? 'green' : 'yellow') + '"></span>'
+    + 'Default Connection</span>'
+    + '<span class="item-meta">' + (defaultConn ? esc(defaultConn) : 'Not set') + '</span></div>';
+
+  // Looker
+  html += '<div class="item-row"><span class="item-label">'
+    + '<span class="status-dot ' + (lookerOk ? 'green' : 'red') + '"></span>'
+    + 'Looker</span>'
+    + '<span class="item-meta">' + (lookerOk ? 'Configured' : 'Not configured') + '</span></div>';
+
+  // Databricks
+  html += '<div class="item-row"><span class="item-label">'
+    + '<span class="status-dot ' + (dbxOk ? 'green' : 'red') + '"></span>'
+    + 'Databricks</span>'
+    + '<span class="item-meta">' + (dbxOk ? 'Configured' : 'Not configured') + '</span></div>';
+
+  html += '</div>';
+
+  // Show any extra info from the API
+  if (data.version) {
+    html += '<hr class="divider">';
+    html += '<p style="font-size:12px;color:#556677">Dante version: <code>' + esc(data.version) + '</code></p>';
+  }
+
+  container.innerHTML = html;
+}
+
+/* ──────────────────────────────────────────────────────────
+   CONFIG
+   ────────────────────────────────────────────────────────── */
+async function loadConfig() {
+  // Ensure connection dropdown is populated
+  await loadConnections();
+  try {
+    var data = await api('GET', '/api/config');
+    if (data) {
+      $('#config-default-conn').value = data.default_connection || '';
+    }
+  } catch (_) {}
+}
+
+async function saveConfig() {
+  var payload = {
+    default_connection: $('#config-default-conn').value
+  };
+  try {
+    await api('POST', '/api/config', payload);
+    toast('Config saved.', 'success');
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   KEYBOARD SHORTCUTS
+   ────────────────────────────────────────────────────────── */
+document.addEventListener('keydown', function(e) {
+  // Enter in keyword/glossary inline forms
+  if (e.key === 'Enter' && e.target.id === 'keyword-input') addKeyword();
+  if (e.key === 'Enter' && (e.target.id === 'glossary-term' || e.target.id === 'glossary-def')) addGlossaryTerm();
+});
+
+/* ──────────────────────────────────────────────────────────
+   INIT
+   ────────────────────────────────────────────────────────── */
+(function init() {
+  loadConnections();
+})();
+</script>
+</body>
+</html>
