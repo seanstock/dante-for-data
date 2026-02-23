@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dante &mdash; Management UI</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -210,7 +211,6 @@
 
 <nav class="tabs" id="tab-nav">
   <button class="active" data-tab="connections">Connections</button>
-  <button data-tab="credentials">Credentials</button>
   <button data-tab="knowledge">Knowledge</button>
   <button data-tab="status">Status</button>
   <button data-tab="config">Config</button>
@@ -220,6 +220,7 @@
   <!-- ═══════════════════ CONNECTIONS TAB ═══════════════════ -->
   <div class="tab-panel active" id="panel-connections">
     <div class="card">
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">SQL execution endpoints — databases Claude queries directly. One connection per database.</p>
       <div class="conn-form-title">
         <h2 id="conn-form-heading">Add Connection</h2>
         <span id="conn-edit-badge" class="edit-badge" style="display:none">EDITING</span>
@@ -281,90 +282,29 @@
     </div>
   </div>
 
-  <!-- ═══════════════════ CREDENTIALS TAB ═══════════════════ -->
-  <div class="tab-panel" id="panel-credentials">
-    <div class="card">
-      <h2>Looker Credentials</h2>
-      <div class="form-grid cols-3">
-        <div class="form-group full">
-          <label for="cred-looker-url">Base URL</label>
-          <input type="text" id="cred-looker-url" placeholder="https://mycompany.looker.com:19999">
-        </div>
-        <div class="form-group">
-          <label for="cred-looker-id">Client ID</label>
-          <input type="text" id="cred-looker-id" placeholder="client_id">
-        </div>
-        <div class="form-group">
-          <label for="cred-looker-secret">Client Secret</label>
-          <input type="password" id="cred-looker-secret" placeholder="client_secret">
-        </div>
-        <div class="form-group" style="align-self:end">
-          <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show/Hide</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Databricks Credentials</h2>
-      <div class="form-grid">
-        <div class="form-group full">
-          <label for="cred-dbx-url">Workspace URL</label>
-          <input type="text" id="cred-dbx-url" placeholder="https://dbc-xxxxx.cloud.databricks.com">
-        </div>
-        <div class="form-group">
-          <label for="cred-dbx-token">Token</label>
-          <input type="password" id="cred-dbx-token" placeholder="dapi...">
-        </div>
-        <div class="form-group" style="align-self:end">
-          <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show/Hide</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="btn-row" style="max-width:900px;margin:0 auto">
-      <button class="btn btn-primary" onclick="saveCredentials()">Save Credentials</button>
-    </div>
-  </div>
 
   <!-- ═══════════════════ KNOWLEDGE TAB ═══════════════════ -->
   <div class="tab-panel" id="panel-knowledge">
     <div class="card">
       <div class="k-tabs">
         <button class="k-tab active" data-ktab="notes">Notes</button>
-        <button class="k-tab" data-ktab="glossary">Glossary</button>
         <button class="k-tab" data-ktab="keywords">Keywords</button>
-        <button class="k-tab" data-ktab="patterns">Patterns</button>
+        <button class="k-tab" data-ktab="embeddings">Embeddings</button>
+        <button class="k-tab" data-ktab="sources">Sources</button>
       </div>
 
       <!-- Notes -->
       <div class="k-panel active" id="kpanel-notes">
-        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Free-form context always injected into Claude's memory — business rules, data quirks, conventions.</p>
-        <textarea id="knowledge-notes" rows="12" placeholder="e.g. Revenue is always net of refunds. The orders table only contains completed orders..."></textarea>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Free-form context always injected into Claude's memory — business rules, data quirks, definitions, conventions.</p>
+        <textarea id="knowledge-notes" rows="18" style="width:100%" placeholder="e.g. Revenue is always net of refunds. ARR = MRR × 12. The orders table only contains completed orders..."></textarea>
         <div class="k-form-row" style="margin-top:10px">
           <button class="k-btn-save" onclick="saveNotes()">Save Notes</button>
         </div>
       </div>
 
-      <!-- Glossary -->
-      <div class="k-panel" id="kpanel-glossary">
-        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Domain terms and their canonical definitions. Claude uses these to interpret queries correctly.</p>
-        <button class="k-add-btn" id="glossary-add-btn" onclick="kShowForm('glossary')">+ Add Term</button>
-        <div class="k-form" id="glossary-form" style="display:none">
-          <input type="text" id="glossary-term" placeholder="Term (e.g. ARR)">
-          <input type="text" id="glossary-def" placeholder="Definition (e.g. Annual Recurring Revenue = MRR × 12)">
-          <div class="k-form-row">
-            <button class="k-btn-save" onclick="addGlossaryTerm()">Save</button>
-            <button class="k-btn-cancel" onclick="kHideForm('glossary')">Cancel</button>
-          </div>
-        </div>
-        <div id="glossary-list" class="k-list">
-          <div class="k-empty">No glossary terms defined yet.</div>
-        </div>
-      </div>
-
       <!-- Keywords -->
       <div class="k-panel" id="kpanel-keywords">
-        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">When a keyword appears in a query, its content is injected as context. Use for metrics, column names, or SQL snippets.</p>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">When a keyword appears in a query, its associated context is injected automatically. Use for metrics, column names, or SQL snippets.</p>
         <button class="k-add-btn" id="keywords-add-btn" onclick="kShowForm('keywords')">+ Add Keyword</button>
         <div class="k-form" id="keywords-form" style="display:none">
           <input type="text" id="keyword-key" placeholder="Keyword trigger (e.g. churn)">
@@ -379,16 +319,74 @@
         </div>
       </div>
 
-      <!-- Patterns -->
-      <div class="k-panel" id="kpanel-patterns">
-        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Saved SQL patterns Claude surfaces when answering similar questions. Added via <code>dante_save_pattern</code>.</p>
+      <!-- Embeddings (formerly Patterns) -->
+      <div class="k-panel" id="kpanel-embeddings">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Saved SQL queries stored as vector embeddings. Claude surfaces these when answering similar questions. Built automatically from Looker/Databricks ingestion or saved manually via <code>dante_save_pattern</code>.</p>
         <div class="k-search">
-          <input type="text" id="pattern-search" placeholder="Search patterns...">
+          <input type="text" id="pattern-search" placeholder="Search embeddings...">
           <button onclick="filterPatterns()">Search</button>
           <button onclick="clearPatternSearch()">Clear</button>
         </div>
         <div id="patterns-list" class="k-list">
-          <div class="k-empty">No patterns saved yet.</div>
+          <div class="k-empty">No embeddings saved yet.</div>
+        </div>
+      </div>
+
+      <!-- Sources -->
+      <div class="k-panel" id="kpanel-sources">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">API credentials for embedding ingestion — used to pull dashboards from Looker and Databricks and generate vector embeddings via OpenAI.</p>
+
+        <div style="margin-bottom:16px">
+          <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">OpenAI</h3>
+          <div class="form-group">
+            <label for="cred-openai-key">API Key</label>
+            <div style="display:flex;gap:8px">
+              <input type="password" id="cred-openai-key" placeholder="sk-..." style="flex:1">
+              <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-openai-key')">Show</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Looker <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— BI platform dashboard ingestion</span></h3>
+          <div class="form-grid cols-3">
+            <div class="form-group full">
+              <label for="cred-looker-url">Base URL</label>
+              <input type="text" id="cred-looker-url" placeholder="https://mycompany.looker.com:19999">
+            </div>
+            <div class="form-group">
+              <label for="cred-looker-id">Client ID</label>
+              <input type="text" id="cred-looker-id" placeholder="client_id">
+            </div>
+            <div class="form-group">
+              <label for="cred-looker-secret">Client Secret</label>
+              <div style="display:flex;gap:8px">
+                <input type="password" id="cred-looker-secret" placeholder="client_secret" style="flex:1">
+                <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Databricks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— dashboard ingestion only (SQL connections are under Connections)</span></h3>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label for="cred-dbx-url">Workspace URL</label>
+              <input type="text" id="cred-dbx-url" placeholder="https://dbc-xxxxx.cloud.databricks.com">
+            </div>
+            <div class="form-group">
+              <label for="cred-dbx-token">Personal Access Token</label>
+              <div style="display:flex;gap:8px">
+                <input type="password" id="cred-dbx-token" placeholder="dapi..." style="flex:1">
+                <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="k-form-row">
+          <button class="k-btn-save" onclick="saveSources()">Save Sources</button>
         </div>
       </div>
     </div>
@@ -493,8 +491,7 @@ $('#tab-nav').addEventListener('click', function(e) {
   // Lazy-load data for the tab
   var tab = e.target.dataset.tab;
   if (tab === 'status') loadStatus();
-  if (tab === 'knowledge') { loadNotes(); loadGlossary(); loadKeywords(); loadPatterns(); }
-  if (tab === 'credentials') loadCredentials();
+  if (tab === 'knowledge') { loadNotes(); loadKeywords(); loadPatterns(); }
   if (tab === 'config') loadConfig();
   if (tab === 'connections') loadConnections();
 });
@@ -643,12 +640,15 @@ function populateConnectionDropdown() {
 }
 
 /* ──────────────────────────────────────────────────────────
-   CREDENTIALS
+   SOURCES (embedding ingestion credentials)
    ────────────────────────────────────────────────────────── */
-async function loadCredentials() {
+async function loadSources() {
   try {
     var data = await api('GET', '/api/credentials');
     if (data) {
+      if (data.openai) {
+        $('#cred-openai-key').value = data.openai.api_key || '';
+      }
       if (data.looker) {
         $('#cred-looker-url').value = data.looker.base_url || '';
         $('#cred-looker-id').value = data.looker.client_id || '';
@@ -662,8 +662,11 @@ async function loadCredentials() {
   } catch (_) {}
 }
 
-async function saveCredentials() {
+async function saveSources() {
   var payload = {
+    openai: {
+      api_key: $('#cred-openai-key').value.trim()
+    },
     looker: {
       base_url:      $('#cred-looker-url').value.trim(),
       client_id:     $('#cred-looker-id').value.trim(),
@@ -676,7 +679,7 @@ async function saveCredentials() {
   };
   try {
     await api('POST', '/api/credentials', payload);
-    toast('Credentials saved.', 'success');
+    toast('Sources saved.', 'success');
   } catch (e) {
     toast('Save failed: ' + e.message, 'error');
   }
@@ -692,8 +695,10 @@ document.addEventListener('click', function(e) {
   card.querySelectorAll('.k-tab').forEach(function(t) { t.classList.remove('active'); });
   card.querySelectorAll('.k-panel').forEach(function(p) { p.classList.remove('active'); });
   btn.classList.add('active');
-  var panel = card.querySelector('#kpanel-' + btn.dataset.ktab);
+  var tab = btn.dataset.ktab;
+  var panel = card.querySelector('#kpanel-' + tab);
   if (panel) panel.classList.add('active');
+  if (tab === 'sources') loadSources();
 });
 
 function kShowForm(name) {

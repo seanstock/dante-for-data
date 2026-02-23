@@ -20,6 +20,14 @@ def _get_client() -> AsyncOpenAI:
     """Return an AsyncOpenAI client, raising a clear error if no API key."""
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
+        # Fall back to stored credentials
+        try:
+            from dante.config import load_global_credentials
+            creds = load_global_credentials()
+            api_key = creds.get("openai", {}).get("api_key", "")
+        except Exception:
+            pass
+    if not api_key:
         if sys.platform == "win32":
             hint = "  set OPENAI_API_KEY=sk-..."
         else:

@@ -102,7 +102,7 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             for key, val in creds.items():
                 if isinstance(val, dict):
                     masked[key] = {
-                        k: ("****" if "secret" in k.lower() or "password" in k.lower() or "token" in k.lower() else v)
+                        k: ("****" if "secret" in k.lower() or "password" in k.lower() or "token" in k.lower() or "key" in k.lower() else v)
                         for k, v in val.items()
                     }
                 else:
