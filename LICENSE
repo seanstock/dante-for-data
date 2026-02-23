@@ -1,25 +1,41 @@
-Dante License v1.0
-Copyright (c) 2026 Sean Stock
+Dante Limited License v1.0
 
-Permission is granted to use, copy, and modify this software for internal use only.
+Copyright (c) 2026 Sean Cook. All rights reserved.
 
-Restrictions:
+Grant of License
 
-1. Commercial Use Prohibited
-   You may not sell, sublicense, distribute, or offer this software or any derivative work
-   as part of a commercial product or service without explicit written permission from the author.
+Permission is granted solely to the following entities (the "Authorized Entities"):
 
-2. No Redistribution
-   You may not redistribute this software or derivatives outside your organization without permission.
+- Ontra, LLC
+- Superhuman Platform Inc. (formerly Grammarly, Inc.)
 
-3. Attribution Required
-   Any internal or external use must retain attribution to the original author.
+Authorized Entities may use, copy, and modify the Dante software (the "Software") for their internal business purposes only.
 
-4. Ownership
-   The author retains all ownership and intellectual property rights.
+Restrictions
 
-5. Contributions
-   Any contributions made to this repository grant the author a perpetual,
-   irrevocable license to use, modify, and redistribute those contributions.
+1. No Redistribution
+Authorized Entities may not distribute, sublicense, share, publish, provide access to, or otherwise make the Software or any derivative works available to any third party without prior written permission from the author.
 
-For commercial licensing, contact: seangcook@gmail.com
+2. Internal Use Only
+Use of the Software is strictly limited to internal use within the Authorized Entities. The Software may not be used to provide services, tools, or functionality to external organizations, clients, partners, or affiliates without explicit written permission from the author.
+
+3. Non-Transferable
+This license is non-transferable and applies only to the Authorized Entities listed above. Employees, contractors, and agents of the Authorized Entities may use the Software solely as part of their work for the Authorized Entities and subject to the terms of this license.
+
+4. No Commercial Distribution
+Authorized Entities may not sell, license, sublicense, commercialize, or otherwise distribute the Software or any derivative works outside their organization without explicit written permission from the author.
+
+5. Ownership
+All rights, title, and interest in and to the Software, including all intellectual property rights, remain exclusively with the author. This license grants only limited usage rights and does not transfer ownership.
+
+6. Contributions
+Any modifications, improvements, or contributions made to the Software by the Authorized Entities may be used, incorporated, sublicensed, and redistributed by the author without restriction or obligation.
+
+7. Revocation
+The author reserves the right to revoke this license at any time with written notice. Upon revocation, the Authorized Entities must cease use of the Software and destroy all copies within a reasonable timeframe.
+
+Contact
+
+For additional licensing rights, including commercial licensing or use by other entities, contact:
+
+seangcook@gmail.com
