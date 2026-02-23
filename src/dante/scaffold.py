@@ -287,6 +287,6 @@ def _write_if_not_exists(path: Path, content: str) -> None:
 
 
 def _write_skill(skill_dir: Path, content: str) -> None:
-    """Write a SKILL.md file."""
+    """Write a SKILL.md file only if it doesn't already exist."""
     skill_dir.mkdir(parents=True, exist_ok=True)
-    (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+    _write_if_not_exists(skill_dir / "SKILL.md", content)

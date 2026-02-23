@@ -426,13 +426,13 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         pass
 
 
-def run_server(port: int = 4200, project_root: Path | None = None):
+def run_server(port: int = 4040, project_root: Path | None = None):
     """Run the dante UI server."""
     root = project_root or Path.cwd()
     handler = partial(DanteUIHandler, project_root=root)
     server = HTTPServer(("127.0.0.1", port), handler)
     try:
-        server.serve_forever()
+        server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:
         pass
     finally:

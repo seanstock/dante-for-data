@@ -60,7 +60,7 @@ def launch(name: str | None, no_ui: bool):
 
 
 @main.command()
-@click.option("--port", default=4200, help="Port for the UI server")
+@click.option("--port", default=4040, help="Port for the UI server")
 def ui(port: int):
     """Open the management UI for connections, credentials, and knowledge."""
     _start_ui(port=port)
@@ -226,7 +226,7 @@ def open_artifact(name: str | None):
     webbrowser.open(target.resolve().as_uri())
 
 
-def _start_ui(port: int = 4200):
+def _start_ui(port: int = 4040):
     """Start the dante UI server."""
     from dante.ui.server import run_server
     click.echo(f"Starting dante UI at http://localhost:{port}")
