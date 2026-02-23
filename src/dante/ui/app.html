@@ -200,6 +200,22 @@
   /* ── Loading spinner ── */
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--accent);border-top-color:var(--highlight);border-radius:50%;animation:spin .6s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── Data Management sections ── */
+  .dm-section{padding:4px 0 14px}
+  .dm-section-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px}
+  .dm-section-desc{font-size:12px;color:var(--text-secondary);margin-bottom:14px;line-height:1.6}
+  .dm-check-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
+  .dm-check-hint{font-size:11px;color:var(--text-muted);margin-left:4px}
+  .dm-creds-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0}
+  .dm-creds-header:hover .dm-section-title{color:var(--highlight)}
+  /* ── Toggle switch ── */
+  .toggle-switch{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+  .toggle-switch input{display:none}
+  .toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background:var(--input-border);border-radius:10px;cursor:pointer;transition:background .2s}
+  .toggle-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s}
+  .toggle-switch input:checked+.toggle-slider{background:var(--highlight)}
+  .toggle-switch input:checked+.toggle-slider:before{transform:translateX(16px)}
 </style>
 </head>
 <body>
@@ -290,7 +306,7 @@
         <button class="k-tab active" data-ktab="notes">Notes</button>
         <button class="k-tab" data-ktab="keywords">Keywords</button>
         <button class="k-tab" data-ktab="embeddings">Embeddings</button>
-        <button class="k-tab" data-ktab="sources">Sources</button>
+        <button class="k-tab" data-ktab="datamanagement">Data Management</button>
       </div>
 
       <!-- Notes -->
@@ -332,62 +348,147 @@
         </div>
       </div>
 
-      <!-- Sources -->
-      <div class="k-panel" id="kpanel-sources">
-        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">API credentials for embedding ingestion — used to pull dashboards from Looker and Databricks and generate vector embeddings via OpenAI.</p>
+      <!-- Data Management -->
+      <div class="k-panel" id="kpanel-datamanagement">
 
-        <div style="margin-bottom:16px">
-          <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">OpenAI</h3>
-          <div class="form-group">
-            <label for="cred-openai-key">API Key</label>
-            <div style="display:flex;gap:8px">
-              <input type="password" id="cred-openai-key" placeholder="sk-..." style="flex:1">
-              <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-openai-key')">Show</button>
+        <!-- Context Ingestion -->
+        <div class="dm-section">
+          <div class="dm-section-title">Context Ingestion</div>
+          <p class="dm-section-desc">Generate semantic embeddings from dashboard charts and data sources. These embeddings help the AI find relevant past queries and patterns.</p>
+          <div class="form-group" style="margin-bottom:12px;max-width:300px">
+            <label>Sources</label>
+            <select id="ingest-source">
+              <option value="all">All Sources</option>
+              <option value="looker">Looker</option>
+              <option value="databricks">Databricks</option>
+              <option value="warehouse">Warehouse</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+            <label class="dm-check-label">
+              <input type="checkbox" id="ingest-limit-check" onchange="toggleIngestLimit()">
+              <span>Limit dashboards</span>
+              <span class="dm-check-hint" id="ingest-limit-hint">Process all dashboards/tables</span>
+            </label>
+            <div id="ingest-limit-row" style="display:none;padding-left:22px;display:none">
+              <input type="number" id="ingest-limit-num" value="50" min="1" max="1000" style="width:80px">
+              <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">dashboards max</span>
+            </div>
+            <label class="dm-check-label">
+              <label class="toggle-switch">
+                <input type="checkbox" id="ingest-skip-existing">
+                <span class="toggle-slider"></span>
+              </label>
+              <span>Skip Existing</span>
+            </label>
+          </div>
+          <button class="btn btn-primary" id="ingest-btn" onclick="runIngest()">Generate Embeddings</button>
+        </div>
+
+        <hr class="divider">
+
+        <!-- SQL Simplification -->
+        <div class="dm-section">
+          <div class="dm-section-title">SQL Simplification</div>
+          <p class="dm-section-desc">Use AI to strip BI-platform noise from raw SQL, improving embedding quality. This runs as a post-processing step on existing embeddings.</p>
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="toast('SQL simplification runs automatically during ingestion. Re-run ingestion to re-simplify.', 'info')">Simplify SQL</button>
+            <label class="dm-check-label">
+              <input type="checkbox" id="simplify-force">
+              <span>Force re-simplify all</span>
+            </label>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- SQL Merge -->
+        <div class="dm-section">
+          <div class="dm-section-title">SQL Merge</div>
+          <p class="dm-section-desc">Find and merge semantically similar embeddings to reduce redundancy and improve retrieval quality.</p>
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="toast('SQL merge coming soon.', 'info')">Find Candidates</button>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;color:var(--text-secondary)">Similarity</span>
+              <input type="range" id="merge-similarity" min="50" max="100" value="92"
+                oninput="document.getElementById('merge-similarity-val').textContent=this.value+'%'"
+                style="width:120px;accent-color:var(--highlight)">
+              <span id="merge-similarity-val" style="font-size:13px;font-weight:700;min-width:36px">92%</span>
             </div>
           </div>
         </div>
 
-        <div style="margin-bottom:16px">
-          <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Looker <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— BI platform dashboard ingestion</span></h3>
-          <div class="form-grid cols-3">
-            <div class="form-group full">
-              <label for="cred-looker-url">Base URL</label>
-              <input type="text" id="cred-looker-url" placeholder="https://mycompany.looker.com:19999">
-            </div>
-            <div class="form-group">
-              <label for="cred-looker-id">Client ID</label>
-              <input type="text" id="cred-looker-id" placeholder="client_id">
-            </div>
-            <div class="form-group">
-              <label for="cred-looker-secret">Client Secret</label>
-              <div style="display:flex;gap:8px">
-                <input type="password" id="cred-looker-secret" placeholder="client_secret" style="flex:1">
-                <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show</button>
+        <hr class="divider">
+
+        <!-- Recent Jobs -->
+        <div class="dm-section">
+          <div class="dm-section-title">Recent Jobs</div>
+          <div id="jobs-list" style="margin-top:8px">
+            <div class="k-empty">No jobs yet.</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- API Credentials (collapsible) -->
+        <div class="dm-section">
+          <div class="dm-creds-header" onclick="toggleCredentials()">
+            <div class="dm-section-title" style="margin-bottom:0">API Credentials</div>
+            <span id="creds-toggle-icon" style="color:var(--text-secondary);font-size:12px">&#9660; Show</span>
+          </div>
+          <div id="credentials-section" style="display:none;margin-top:14px">
+            <div style="margin-bottom:16px">
+              <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">OpenAI</h3>
+              <div class="form-group">
+                <label for="cred-openai-key">API Key</label>
+                <div style="display:flex;gap:8px">
+                  <input type="password" id="cred-openai-key" placeholder="sk-..." style="flex:1">
+                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-openai-key')">Show</button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div style="margin-bottom:16px">
-          <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Databricks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— dashboard ingestion only (SQL connections are under Connections)</span></h3>
-          <div class="form-grid">
-            <div class="form-group full">
-              <label for="cred-dbx-url">Workspace URL</label>
-              <input type="text" id="cred-dbx-url" placeholder="https://dbc-xxxxx.cloud.databricks.com">
-            </div>
-            <div class="form-group">
-              <label for="cred-dbx-token">Personal Access Token</label>
-              <div style="display:flex;gap:8px">
-                <input type="password" id="cred-dbx-token" placeholder="dapi..." style="flex:1">
-                <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show</button>
+            <div style="margin-bottom:16px">
+              <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Looker <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— BI platform dashboard ingestion</span></h3>
+              <div class="form-grid cols-3">
+                <div class="form-group full">
+                  <label for="cred-looker-url">Base URL</label>
+                  <input type="text" id="cred-looker-url" placeholder="https://mycompany.looker.com:19999">
+                </div>
+                <div class="form-group">
+                  <label for="cred-looker-id">Client ID</label>
+                  <input type="text" id="cred-looker-id" placeholder="client_id">
+                </div>
+                <div class="form-group">
+                  <label for="cred-looker-secret">Client Secret</label>
+                  <div style="display:flex;gap:8px">
+                    <input type="password" id="cred-looker-secret" placeholder="client_secret" style="flex:1">
+                    <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show</button>
+                  </div>
+                </div>
               </div>
             </div>
+            <div style="margin-bottom:16px">
+              <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Databricks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— dashboard ingestion only</span></h3>
+              <div class="form-grid">
+                <div class="form-group full">
+                  <label for="cred-dbx-url">Workspace URL</label>
+                  <input type="text" id="cred-dbx-url" placeholder="https://dbc-xxxxx.cloud.databricks.com">
+                </div>
+                <div class="form-group">
+                  <label for="cred-dbx-token">Personal Access Token</label>
+                  <div style="display:flex;gap:8px">
+                    <input type="password" id="cred-dbx-token" placeholder="dapi..." style="flex:1">
+                    <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="k-form-row">
+              <button class="k-btn-save" onclick="saveSources()">Save Credentials</button>
+            </div>
           </div>
         </div>
 
-        <div class="k-form-row">
-          <button class="k-btn-save" onclick="saveSources()">Save Sources</button>
-        </div>
       </div>
     </div>
   </div>
@@ -495,6 +596,7 @@ $('#tab-nav').addEventListener('click', function(e) {
   if (tab === 'config') loadConfig();
   if (tab === 'connections') loadConnections();
 });
+
 
 /* ──────────────────────────────────────────────────────────
    CONNECTIONS
@@ -698,7 +800,7 @@ document.addEventListener('click', function(e) {
   var tab = btn.dataset.ktab;
   var panel = card.querySelector('#kpanel-' + tab);
   if (panel) panel.classList.add('active');
-  if (tab === 'sources') loadSources();
+  if (tab === 'datamanagement') { loadSources(); loadJobs(); }
 });
 
 function kShowForm(name) {
@@ -1027,6 +1129,120 @@ async function saveConfig() {
     toast('Config saved.', 'success');
   } catch (e) {
     toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   DATA MANAGEMENT
+   ────────────────────────────────────────────────────────── */
+function toggleIngestLimit() {
+  var checked = document.getElementById('ingest-limit-check').checked;
+  document.getElementById('ingest-limit-row').style.display = checked ? 'block' : 'none';
+  document.getElementById('ingest-limit-hint').style.display = checked ? 'none' : 'inline';
+}
+
+function toggleCredentials() {
+  var section = document.getElementById('credentials-section');
+  var icon = document.getElementById('creds-toggle-icon');
+  var visible = section.style.display !== 'none';
+  section.style.display = visible ? 'none' : 'block';
+  icon.innerHTML = visible ? '&#9660; Show' : '&#9650; Hide';
+  if (!visible) loadSources();
+}
+
+var _currentJobs = [];
+var _pollInterval = null;
+
+async function loadJobs() {
+  try {
+    var data = await api('GET', '/api/jobs');
+    _currentJobs = Array.isArray(data) ? data : [];
+    renderJobs(_currentJobs);
+  } catch (_) {
+    _currentJobs = [];
+  }
+}
+
+function renderJobs(jobs) {
+  var list = document.getElementById('jobs-list');
+  if (!jobs || jobs.length === 0) {
+    list.innerHTML = '<div class="k-empty">No jobs yet. Click Generate Embeddings to start.</div>';
+    return;
+  }
+  var html = '<div class="item-list">';
+  jobs.slice(0, 10).forEach(function(job) {
+    var s = job.status || 'unknown';
+    var statusStyle = s === 'completed' ? 'background:#14532d;color:var(--success);border-color:var(--success)' :
+                      s === 'failed'    ? 'background:#7f1d1d;color:var(--danger);border-color:var(--danger)' :
+                      s === 'running'   ? 'background:#2d2000;color:var(--warn);border-color:var(--warn)' :
+                                         'background:#2f2f2f;color:var(--text-secondary);border-color:var(--border)';
+    var resultStr = '';
+    if (job.result) {
+      var r = job.result;
+      resultStr = '+' + r.created + ' / ~' + r.updated + ' / -' + r.skipped;
+    } else if (s === 'running' || s === 'pending') {
+      resultStr = 'in progress...';
+    }
+    var dateStr = '';
+    if (job.started_at) {
+      var d = new Date(job.started_at);
+      dateStr = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+    }
+    html += '<div class="item-row">'
+      + '<div style="display:flex;align-items:center;gap:12px;flex:1">'
+      + '  <span style="border:1px solid;border-radius:3px;padding:2px 8px;font-size:11px;font-weight:700;' + statusStyle + '">' + esc(s.charAt(0).toUpperCase() + s.slice(1)) + '</span>'
+      + '  <span class="item-label">' + esc(job.source || 'all') + '</span>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:16px">'
+      + (resultStr ? '<span class="item-meta" style="font-family:var(--mono)">' + esc(resultStr) + '</span>' : '')
+      + '<span class="item-meta">' + esc(dateStr) + '</span>'
+      + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  list.innerHTML = html;
+}
+
+async function runIngest() {
+  var source = document.getElementById('ingest-source').value;
+  var skipExisting = document.getElementById('ingest-skip-existing').checked;
+  var limitCheck = document.getElementById('ingest-limit-check').checked;
+  var dashboardLimit = limitCheck ? parseInt(document.getElementById('ingest-limit-num').value || '50') : 0;
+
+  var btn = document.getElementById('ingest-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Starting...';
+
+  try {
+    await api('POST', '/api/ingest', {
+      source: source,
+      skip_existing: skipExisting,
+      dashboard_limit: dashboardLimit,
+    });
+    toast('Ingestion job started.', 'info');
+    await loadJobs();
+    if (_pollInterval) clearInterval(_pollInterval);
+    _pollInterval = setInterval(async function() {
+      await loadJobs();
+      var anyActive = _currentJobs.some(function(j) { return j.status === 'pending' || j.status === 'running'; });
+      if (!anyActive) {
+        clearInterval(_pollInterval);
+        _pollInterval = null;
+        btn.disabled = false;
+        btn.innerHTML = 'Generate Embeddings';
+        var lastJob = _currentJobs[0];
+        if (lastJob && lastJob.status === 'completed' && lastJob.result) {
+          var r = lastJob.result;
+          toast('Done: +' + r.created + ' created, ~' + r.updated + ' updated', 'success');
+        } else if (lastJob && lastJob.status === 'failed') {
+          toast('Ingestion failed: ' + (lastJob.error || 'unknown error'), 'error');
+        }
+      }
+    }, 2000);
+  } catch (e) {
+    toast('Failed to start ingestion: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = 'Generate Embeddings';
   }
 }
 

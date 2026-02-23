@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import uuid
+from datetime import datetime, timezone
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -29,6 +32,72 @@ from dante.config import (
 from dante.connect import test_connection
 
 _UI_DIR = Path(__file__).parent
+
+
+# ── Job storage helpers ──────────────────────────────────────────────────────
+
+def _jobs_file() -> Path:
+    from dante.config import global_dir
+    return global_dir() / "jobs.json"
+
+
+def _load_jobs() -> list:
+    f = _jobs_file()
+    if f.exists():
+        try:
+            with open(f, encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            return []
+    return []
+
+
+def _save_jobs(jobs: list) -> None:
+    f = _jobs_file()
+    with open(f, "w", encoding="utf-8") as fh:
+        json.dump(jobs, fh, indent=2, default=str)
+
+
+def _run_ingest_background(
+    job_id: str, source: str, skip_existing: bool, dashboard_limit: int
+) -> None:
+    """Run ingestion in a background thread and update the job record."""
+    import asyncio
+    from dante.ingest import IngestionConfig, run as run_ingest
+
+    # Mark as running
+    jobs = _load_jobs()
+    for j in jobs:
+        if j["id"] == job_id:
+            j["status"] = "running"
+            break
+    _save_jobs(jobs)
+
+    try:
+        config = IngestionConfig(
+            sources=[source],
+            skip_existing=skip_existing,
+            dashboard_limit=dashboard_limit,
+        )
+        result = asyncio.run(run_ingest(config))
+
+        jobs = _load_jobs()
+        for j in jobs:
+            if j["id"] == job_id:
+                j["status"] = "completed"
+                j["finished_at"] = datetime.now(timezone.utc).isoformat()
+                j["result"] = result.to_dict()
+                break
+        _save_jobs(jobs)
+    except Exception as exc:
+        jobs = _load_jobs()
+        for j in jobs:
+            if j["id"] == job_id:
+                j["status"] = "failed"
+                j["finished_at"] = datetime.now(timezone.utc).isoformat()
+                j["error"] = str(exc)
+                break
+        _save_jobs(jobs)
 
 
 class DanteUIHandler(SimpleHTTPRequestHandler):
@@ -149,6 +218,9 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         elif path == "/api/status":
             self._json_response(self._get_status())
 
+        elif path == "/api/jobs":
+            self._json_response(_load_jobs())
+
         else:
             self.send_error(404)
 
@@ -222,6 +294,33 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             notes_path.parent.mkdir(parents=True, exist_ok=True)
             notes_path.write_text(content, encoding="utf-8")
             self._json_response({"ok": True})
+
+        elif path == "/api/ingest":
+            source = data.get("source", "all")
+            skip_existing = bool(data.get("skip_existing", False))
+            dashboard_limit = int(data.get("dashboard_limit", 0))
+
+            job_id = uuid.uuid4().hex[:8]
+            now = datetime.now(timezone.utc).isoformat()
+            job = {
+                "id": job_id,
+                "source": source,
+                "started_at": now,
+                "finished_at": None,
+                "status": "pending",
+                "result": None,
+            }
+            jobs = _load_jobs()
+            jobs.insert(0, job)
+            _save_jobs(jobs[:50])
+
+            t = threading.Thread(
+                target=_run_ingest_background,
+                args=(job_id, source, skip_existing, dashboard_limit),
+                daemon=True,
+            )
+            t.start()
+            self._json_response({"ok": True, "job_id": job_id})
 
         else:
             self.send_error(404)
