@@ -126,14 +126,14 @@ def status(as_json: bool):
     terms_file = knowledge_dir / "terms.yaml"
     if terms_file.exists():
         import yaml
-        with open(terms_file) as f:
+        with open(terms_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         terms_count = len([k for k in data if not str(k).startswith("#")])
 
     keywords_file = knowledge_dir / "keywords.yaml"
     if keywords_file.exists():
         import yaml
-        with open(keywords_file) as f:
+        with open(keywords_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         keywords_count = len([k for k in data if not str(k).startswith("#")])
 

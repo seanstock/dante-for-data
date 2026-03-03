@@ -66,7 +66,7 @@ def load_global_connections() -> dict:
     path = global_dir() / "connections.yaml"
     if not path.exists():
         return {"connections": {}}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     if "connections" not in data:
         data = {"connections": data}
@@ -76,7 +76,7 @@ def load_global_connections() -> dict:
 def save_global_connections(data: dict) -> None:
     """Write ~/.dante/connections.yaml."""
     path = global_dir() / "connections.yaml"
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
@@ -85,14 +85,14 @@ def load_global_credentials() -> dict:
     path = global_dir() / "credentials.yaml"
     if not path.exists():
         return {}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
 def save_global_credentials(data: dict) -> None:
     """Write ~/.dante/credentials.yaml."""
     path = global_dir() / "credentials.yaml"
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
@@ -101,7 +101,7 @@ def load_project_config(root: Path | None = None) -> dict:
     path = project_dir(root) / "config.yaml"
     if not path.exists():
         return {}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 

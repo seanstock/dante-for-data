@@ -97,7 +97,7 @@ def test_terms_yaml_format(tmp_path):
     """Ensure the file is valid YAML after write."""
     define("NRR", "Net Revenue Retention.", root=tmp_path)
     path = tmp_path / ".dante" / "knowledge" / "terms.yaml"
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     assert isinstance(data, dict)
     assert data["NRR"] == "Net Revenue Retention."

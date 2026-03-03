@@ -46,7 +46,7 @@ def checkpoint(name: str, root: Path | None = None) -> str:
         "output_files": len(list((checkpoint_path / "outputs").rglob("*"))) if (checkpoint_path / "outputs").exists() else 0,
     }
     import json
-    (checkpoint_path / "meta.json").write_text(json.dumps(meta, indent=2))
+    (checkpoint_path / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     return f"Checkpoint '{name}' saved at {checkpoint_path}"
 
@@ -146,7 +146,7 @@ def report(
     for section_path in sections:
         full_path = root / section_path
         if full_path.exists():
-            code = full_path.read_text()
+            code = full_path.read_text(encoding="utf-8")
             html_parts.append(f"<h2>{full_path.stem}</h2>")
             html_parts.append(f"<pre><code>{_escape_html(code)}</code></pre>")
 
@@ -155,7 +155,7 @@ def report(
         full_path = root / chart_path
         if full_path.exists():
             html_parts.append(f"<h2>{full_path.stem}</h2>")
-            chart_content = full_path.read_text()
+            chart_content = full_path.read_text(encoding="utf-8")
             # Embed inline via srcdoc
             html_parts.append(
                 f'<iframe srcdoc="{_escape_attr(chart_content)}" '
@@ -169,7 +169,7 @@ def report(
     slug = re.sub(r"[^\w\s-]", "", title.lower())
     slug = re.sub(r"[\s_]+", "-", slug).strip("-") or "report"
     out_path = outputs_dir / f"{slug}.html"
-    out_path.write_text("\n".join(html_parts))
+    out_path.write_text("\n".join(html_parts), encoding="utf-8")
 
     return str(out_path)
 

@@ -106,7 +106,7 @@ class App:
         )
 
         out_path = outputs_dir / f"{self.id}.html"
-        out_path.write_text(full_html)
+        out_path.write_text(full_html, encoding="utf-8")
         return str(out_path)
 
     def open(self):

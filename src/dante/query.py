@@ -49,7 +49,7 @@ def _log_query(query: str, rows: int, elapsed_ms: float, root: Path | None = Non
             "rows": rows,
             "elapsed_ms": round(elapsed_ms, 1),
         }
-        with open(log_path, "a") as f:
+        with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
     except Exception:
         pass  # logging should never break queries
