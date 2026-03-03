@@ -1,28 +1,54 @@
-"""MCP tool stubs for knowledge management (search, patterns, glossary).
-
-These are placeholders that will be wired to the knowledge subsystem
-once embedding storage and retrieval are implemented.
-"""
+"""MCP tool implementations for knowledge management (search, patterns, glossary)."""
 
 from __future__ import annotations
 
 
 def dante_search(query: str, top_k: int = 5) -> str:
-    """Search the project knowledge base for relevant SQL patterns, terms, and notes.
+    """Search the project knowledge base for relevant SQL patterns, terms, and notes."""
+    from dante.knowledge.search import search
+    from dante.knowledge import glossary
 
-    Args:
-        query: Natural language search query.
-        top_k: Number of results to return. Defaults to 5.
+    results = search(query, top_k=top_k)
 
-    Returns:
-        Markdown-formatted search results.
-    """
-    # TODO: implement with knowledge.search() once embedding store is ready
-    return (
-        "_Knowledge search is not yet implemented._ "
-        "This feature will allow searching saved SQL patterns, "
-        "business term definitions, and project notes."
-    )
+    # Also search glossary terms by substring
+    terms = glossary.load()
+    query_lower = query.lower()
+    term_matches = [
+        (t, d) for t, d in terms.items()
+        if query_lower in t.lower() or query_lower in (d or "").lower()
+    ]
+
+    if not results and not term_matches:
+        return "No matching patterns, keywords, or glossary terms found."
+
+    parts = []
+
+    if term_matches:
+        parts.append("### Glossary Matches\n")
+        for term, definition in sorted(term_matches):
+            parts.append(f"- **{term}**: {definition}")
+        parts.append("")
+
+    if results:
+        parts.append("### Knowledge Matches\n")
+        for r in results:
+            sim = r.get("similarity", 0)
+            source = r.get("source", "")
+            kw = r.get("keyword_match")
+
+            if kw:
+                parts.append(f"**Keyword: {kw}** (exact match)")
+                parts.append(f"> {r.get('description', '')}")
+            else:
+                q = r.get("question", "(no question)")
+                parts.append(f"**{q}** (similarity: {sim:.2f}, source: {source})")
+                if r.get("description"):
+                    parts.append(f"> {r['description']}")
+                if r.get("sql"):
+                    parts.append(f"```sql\n{r['sql']}\n```")
+            parts.append("")
+
+    return "\n".join(parts)
 
 
 def dante_save_pattern(
@@ -31,36 +57,21 @@ def dante_save_pattern(
     tables: list[str],
     description: str,
 ) -> str:
-    """Save a reusable SQL pattern to the project knowledge base.
+    """Save a reusable SQL pattern to the project knowledge base."""
+    from dante.knowledge.patterns import save_pattern
 
-    Args:
-        question: The business question this pattern answers.
-        sql: The SQL query template.
-        tables: List of tables referenced by the query.
-        description: Human-readable description of what the pattern does.
-
-    Returns:
-        Confirmation message.
-    """
-    # TODO: implement with knowledge.save_pattern()
-    return (
-        "_Pattern saving is not yet implemented._ "
-        "This feature will persist SQL patterns for future retrieval."
+    path = save_pattern(
+        question=question,
+        sql=sql,
+        tables=tables,
+        description=description,
     )
+    return f"Pattern saved to `{path.name}`. It will be matched in future `dante_search` calls."
 
 
 def dante_define_term(term: str, definition: str) -> str:
-    """Add or update a business term definition in the project glossary.
+    """Add or update a business term definition in the project glossary."""
+    from dante.knowledge.glossary import define
 
-    Args:
-        term: The business term to define.
-        definition: Plain-language definition of the term.
-
-    Returns:
-        Confirmation message.
-    """
-    # TODO: implement with knowledge.define_term()
-    return (
-        "_Term definition is not yet implemented._ "
-        "This feature will maintain a project glossary of business terms."
-    )
+    define(term, definition)
+    return f"Glossary term **{term}** saved."

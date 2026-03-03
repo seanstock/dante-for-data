@@ -65,6 +65,80 @@ dante.report(title=..., sections=[...], charts=[...])   # → HTML report
 @.dante/knowledge/notes.md
 """
 
+_CURSORRULES = """\
+# Dante Data Science Project
+
+You have MCP tools for database queries, charts, dashboards, and knowledge search.
+
+## MCP Tools
+
+| Tool | What it does |
+|------|-------------|
+| `dante_sql` | Execute read-only SQL. Auto-injects LIMIT. Returns markdown table. |
+| `dante_tables` | List tables, optionally filter by schema. |
+| `dante_describe` | Column names, types, nullability, sample values for a table. |
+| `dante_profile` | Row count, null rates, cardinality, distributions for a table. |
+| `dante_search` | Semantic search across embedding index + keywords. Returns matching SQL patterns. |
+| `dante_save_pattern` | Save validated SQL + generate embedding for future matching. |
+| `dante_define_term` | Add/update a business glossary entry. |
+| `dante_chart` | Generate a Plotly chart → HTML or PNG file. |
+| `dante_app_create` | Create a Data App from a template (dashboard, report, map, profile, blank). |
+| `dante_app_add_value` | Bind a SQL query to a computed value slot in a Data App. |
+| `dante_app_render` | Execute all queries, substitute values, write final HTML. |
+| `dante_checkpoint` | Snapshot analysis/ and outputs/ directories. |
+| `dante_rollback` | Restore to a previous checkpoint. |
+
+## Rules
+
+1. Search knowledge first. Before writing SQL, call `dante_search`. If similarity > 0.7, adapt the match.
+2. Explore before querying. Call `dante_describe` on unfamiliar tables before writing SQL.
+3. Save validated patterns. When the user confirms a result, call `dante_save_pattern`.
+4. Never hardcode data into Data Apps. Always use `dante_app_add_value`.
+5. Checkpoint before risky steps.
+6. One script per analysis step in `analysis/`. Outputs go to `outputs/`. Data goes to `data/`.
+
+## Workflows
+
+### Query Exploration
+
+1. Run `dante_search` with the user's question to find matching patterns
+2. If a match has similarity > 0.7, adapt its SQL. Otherwise, explore:
+   - `dante_tables` to find relevant tables
+   - `dante_describe` on candidate tables
+3. Write and run the query with `dante_sql`
+4. If the user confirms the result is useful, save it: `dante_save_pattern`
+5. If they want a visualization, use `dante_chart`
+
+### Dashboard Building
+
+1. Search knowledge for relevant patterns: `dante_search`
+2. Explore schema to understand available data
+3. Create the app: `dante_app_create` with template "dashboard"
+4. Add computed values for each KPI and chart (NEVER hardcode data)
+5. Render and report the output path
+
+Available templates: dashboard, report, map, profile, blank
+Dashboard CSS classes: .kpis, .kpi, .kpi-label, .kpi-value, .kpi-change.up/.down, .chart-card, .chart-card.wide, .data-table
+
+### Multi-Step Analysis
+
+1. **Explore.** `dante_tables`, `dante_describe`, `dante_profile` on relevant tables
+2. **Search.** `dante_search` for existing patterns related to the question
+3. **Plan.** Write a step-by-step plan to `analysis/plan.md`
+4. **Execute.** One script per step in `analysis/`. Run and verify each.
+5. **Checkpoint.** `dante_checkpoint` after each successful step
+6. **Iterate.** If stuck, `dante_rollback` and try a different approach
+7. **Report.** Compile findings
+
+## Business Glossary
+
+See `.dante/knowledge/terms.yaml` for business term definitions.
+
+## Notes
+
+See `.dante/knowledge/notes.md` for project notes and context.
+"""
+
 _MCP_JSON = {
     "mcpServers": {
         "dante": {
@@ -196,12 +270,13 @@ Compile the current analysis into a report titled: $ARGUMENTS
 """
 
 
-def scaffold_project(name: str, root: Path | None = None) -> Path:
+def scaffold_project(name: str, root: Path | None = None, cursor: bool = False) -> Path:
     """Create a new dante-lib project.
 
     Args:
         name: Project directory name.
         root: Parent directory. Defaults to cwd.
+        cursor: If True, generate .cursorrules instead of CLAUDE.md and skills.
 
     Returns:
         Path to the created project directory.
@@ -228,16 +303,19 @@ def scaffold_project(name: str, root: Path | None = None) -> Path:
     _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers — add keywords here\n# revenue: \"Revenue = SUM(amount) from orders table.\"\n")
     _write_if_not_exists(knowledge_dir / "notes.md", "# Project Notes\n\nAdd notes here. Claude sees these at the start of every session.\n")
 
-    # .claude/skills/
-    skills_dir = project / ".claude" / "skills"
-    _write_skill(skills_dir / "query", _QUERY_SKILL)
-    _write_skill(skills_dir / "dashboard", _DASHBOARD_SKILL)
-    _write_skill(skills_dir / "analyze", _ANALYZE_SKILL)
-    _write_skill(skills_dir / "ingest", _INGEST_SKILL)
-    _write_skill(skills_dir / "report", _REPORT_SKILL)
+    if cursor:
+        _write_if_not_exists(project / ".cursorrules", _CURSORRULES)
+    else:
+        # .claude/skills/
+        skills_dir = project / ".claude" / "skills"
+        _write_skill(skills_dir / "query", _QUERY_SKILL)
+        _write_skill(skills_dir / "dashboard", _DASHBOARD_SKILL)
+        _write_skill(skills_dir / "analyze", _ANALYZE_SKILL)
+        _write_skill(skills_dir / "ingest", _INGEST_SKILL)
+        _write_skill(skills_dir / "report", _REPORT_SKILL)
+        _write_if_not_exists(project / "CLAUDE.md", _CLAUDE_MD)
 
     # Root files
-    _write_if_not_exists(project / "CLAUDE.md", _CLAUDE_MD)
     _write_if_not_exists(project / ".mcp.json", json.dumps(_MCP_JSON, indent=2) + "\n")
     _write_if_not_exists(project / ".gitignore", _GITIGNORE)
     _write_if_not_exists(project / "README.md", f"# {name}\n\nA dante-lib data science project.\n")
@@ -245,7 +323,7 @@ def scaffold_project(name: str, root: Path | None = None) -> Path:
     return project
 
 
-def scaffold_in_place(root: Path | None = None) -> Path:
+def scaffold_in_place(root: Path | None = None, cursor: bool = False) -> Path:
     """Set up dante-lib in an existing directory (no subdirectory created)."""
     root = root or Path.cwd()
 
@@ -265,14 +343,17 @@ def scaffold_in_place(root: Path | None = None) -> Path:
     _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers\n")
     _write_if_not_exists(knowledge_dir / "notes.md", "# Project Notes\n\nAdd notes here.\n")
 
-    skills_dir = root / ".claude" / "skills"
-    _write_skill(skills_dir / "query", _QUERY_SKILL)
-    _write_skill(skills_dir / "dashboard", _DASHBOARD_SKILL)
-    _write_skill(skills_dir / "analyze", _ANALYZE_SKILL)
-    _write_skill(skills_dir / "ingest", _INGEST_SKILL)
-    _write_skill(skills_dir / "report", _REPORT_SKILL)
+    if cursor:
+        _write_if_not_exists(root / ".cursorrules", _CURSORRULES)
+    else:
+        skills_dir = root / ".claude" / "skills"
+        _write_skill(skills_dir / "query", _QUERY_SKILL)
+        _write_skill(skills_dir / "dashboard", _DASHBOARD_SKILL)
+        _write_skill(skills_dir / "analyze", _ANALYZE_SKILL)
+        _write_skill(skills_dir / "ingest", _INGEST_SKILL)
+        _write_skill(skills_dir / "report", _REPORT_SKILL)
+        _write_if_not_exists(root / "CLAUDE.md", _CLAUDE_MD)
 
-    _write_if_not_exists(root / "CLAUDE.md", _CLAUDE_MD)
     _write_if_not_exists(root / ".mcp.json", json.dumps(_MCP_JSON, indent=2) + "\n")
     _write_if_not_exists(root / ".gitignore", _GITIGNORE)
 

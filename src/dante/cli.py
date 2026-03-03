@@ -31,23 +31,28 @@ def main():
 @main.command()
 @click.argument("name", required=False)
 @click.option("--no-ui", is_flag=True, help="Skip opening the management UI")
-def launch(name: str | None, no_ui: bool):
+@click.option("--cursor", is_flag=True, help="Generate .cursorrules instead of CLAUDE.md and skills (for Cursor IDE)")
+def launch(name: str | None, no_ui: bool, cursor: bool):
     """Scaffold a new data science project and open the setup UI."""
     from dante.scaffold import scaffold_project, scaffold_in_place
 
     if name:
-        project_path = scaffold_project(name)
+        project_path = scaffold_project(name, cursor=cursor)
         click.echo(f"Created project at {project_path}/")
     else:
-        project_path = scaffold_in_place()
+        project_path = scaffold_in_place(cursor=cursor)
         click.echo(f"Initialized dante-lib in {project_path}/")
 
     click.echo()
     click.echo("Project structure:")
-    click.echo(f"  .mcp.json           — Claude Code MCP config")
-    click.echo(f"  .claude/skills/     — Slash commands (/query, /dashboard, /analyze, ...)")
+    if cursor:
+        click.echo(f"  .mcp.json           — MCP server config")
+        click.echo(f"  .cursorrules        — Tool reference and workflows for Cursor")
+    else:
+        click.echo(f"  .mcp.json           — Claude Code MCP config")
+        click.echo(f"  .claude/skills/     — Slash commands (/query, /dashboard, /analyze, ...)")
+        click.echo(f"  CLAUDE.md           — Tool reference for Claude")
     click.echo(f"  .dante/             — Config, knowledge, embeddings")
-    click.echo(f"  CLAUDE.md           — Tool reference for Claude")
     click.echo(f"  analysis/           — Analysis scripts")
     click.echo(f"  outputs/            — Generated charts, dashboards, reports")
     click.echo()

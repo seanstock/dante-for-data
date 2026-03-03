@@ -133,6 +133,43 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def do_PUT(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path.startswith("/api/patterns/"):
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8") if content_length else "{}"
+            try:
+                data = json.loads(body) if body else {}
+            except json.JSONDecodeError:
+                data = {}
+
+            from dante.knowledge.patterns import save_pattern, delete_pattern
+
+            old_filename = path.split("/")[-1]
+            question = data.get("question", "")
+            sql = data.get("sql", "")
+            tables = data.get("tables", [])
+            description = data.get("description", "")
+
+            if not question:
+                self._json_response({"error": "Question is required"}, 400)
+                return
+
+            # Delete old file first (slug may change if question changed)
+            delete_pattern(old_filename)
+
+            new_path = save_pattern(
+                question=question,
+                sql=sql,
+                tables=tables if isinstance(tables, list) else [t.strip() for t in tables.split(",") if t.strip()],
+                description=description,
+            )
+            self._json_response({"ok": True, "filename": new_path.name})
+        else:
+            self.send_error(404)
+
     def do_DELETE(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -208,12 +245,8 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 self._json_response({"content": ""})
 
         elif path == "/api/patterns":
-            patterns_dir = knowledge_dir() / "patterns"
-            patterns = []
-            if patterns_dir.exists():
-                for f in sorted(patterns_dir.glob("*.sql")):
-                    patterns.append({"name": f.stem, "size": f.stat().st_size})
-            self._json_response(patterns)
+            from dante.knowledge.patterns import list_patterns
+            self._json_response(list_patterns())
 
         elif path == "/api/status":
             self._json_response(self._get_status())
@@ -288,6 +321,23 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
             self._json_response({"ok": True})
 
+        elif path == "/api/patterns":
+            from dante.knowledge.patterns import save_pattern
+            question = data.get("question", "")
+            sql = data.get("sql", "")
+            tables = data.get("tables", [])
+            description = data.get("description", "")
+            if not question:
+                self._json_response({"error": "Question is required"}, 400)
+                return
+            new_path = save_pattern(
+                question=question,
+                sql=sql,
+                tables=tables if isinstance(tables, list) else [t.strip() for t in tables.split(",") if t.strip()],
+                description=description,
+            )
+            self._json_response({"ok": True, "filename": new_path.name})
+
         elif path == "/api/notes":
             content = data.get("content", "")
             notes_path = knowledge_dir() / "notes.md"
@@ -358,8 +408,20 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         elif path.startswith("/api/patterns/"):
             filename = path.split("/")[-1]
             pattern_path = knowledge_dir() / "patterns" / filename
+            # Delete the .sql file
             if pattern_path.exists():
                 pattern_path.unlink()
+            # Also delete from embedding DB
+            try:
+                from dante.knowledge.embeddings import init_db, delete as emb_delete
+                db_path = knowledge_dir() / "embeddings.db"
+                if db_path.exists():
+                    conn = init_db(db_path)
+                    slug = filename.replace(".sql", "") if filename.endswith(".sql") else filename
+                    emb_delete(conn, slug)
+                    conn.close()
+            except Exception:
+                pass
             self._json_response({"ok": True})
 
         else:
@@ -428,9 +490,18 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
 
 def run_server(port: int = 4040, project_root: Path | None = None):
     """Run the dante UI server."""
+    import signal
+
     root = project_root or Path.cwd()
     handler = partial(DanteUIHandler, project_root=root)
     server = HTTPServer(("127.0.0.1", port), handler)
+
+    def _shutdown(sig, frame):
+        server.server_close()
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, _shutdown)
+
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:

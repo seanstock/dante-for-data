@@ -188,6 +188,31 @@
   .k-btn-cancel{background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans)}
   .k-btn-cancel:hover{color:var(--text);border-color:var(--text-muted)}
 
+  /* ── Modal overlay ── */
+  .modal-overlay{
+    display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;
+  }
+  .modal-overlay.active{display:flex}
+  .modal-content{
+    background:var(--bg);border:1px solid var(--border);border-radius:10px;
+    padding:24px;width:80vw;height:80vh;overflow-y:auto;
+    box-shadow:0 8px 32px rgba(0,0,0,.4);
+  }
+  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .modal-title{font-size:15px;font-weight:700;color:var(--text)}
+  .modal-close{background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:4px 8px;border-radius:4px}
+  .modal-close:hover{color:var(--text);background:var(--border)}
+  .modal-field{margin-bottom:12px}
+  .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px}
+  .modal-field input,.modal-field textarea{
+    width:100%;background:var(--input-bg);border:1px solid var(--input-border);border-radius:6px;
+    color:var(--text);padding:8px 10px;font-size:13px;font-family:var(--sans);outline:none;box-sizing:border-box;
+  }
+  .modal-field input:focus,.modal-field textarea:focus{border-color:var(--highlight)}
+  .modal-field textarea{resize:vertical;min-height:400px;font-family:var(--mono);font-size:12px;line-height:1.6}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
   /* ── Knowledge empty state ── */
   .k-empty{padding:24px;text-align:center;color:var(--text-muted);font-size:13px}
 
@@ -326,15 +351,7 @@
       <!-- Keywords -->
       <div class="k-panel" id="kpanel-keywords">
         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">When a keyword appears in a query, its associated context is injected automatically. Use for metrics, column names, or SQL snippets.</p>
-        <button class="k-add-btn" id="keywords-add-btn" onclick="kShowForm('keywords')">+ Add Keyword</button>
-        <div class="k-form" id="keywords-form" style="display:none">
-          <input type="text" id="keyword-key" placeholder="Keyword trigger (e.g. churn)">
-          <textarea id="keyword-content" placeholder="Context to inject when keyword appears (e.g. Churn = canceled_at IS NOT NULL AND...)"></textarea>
-          <div class="k-form-row">
-            <button class="k-btn-save" onclick="addKeyword()">Save</button>
-            <button class="k-btn-cancel" onclick="kHideForm('keywords')">Cancel</button>
-          </div>
-        </div>
+        <button class="k-add-btn" onclick="addNewKeyword()">+ Add Keyword</button>
         <div id="keywords-list" class="k-list">
           <div class="k-empty">No keywords defined yet.</div>
         </div>
@@ -343,7 +360,8 @@
       <!-- Embeddings (formerly Patterns) -->
       <div class="k-panel" id="kpanel-embeddings">
         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Saved SQL queries stored as vector embeddings. Claude surfaces these when answering similar questions. Built automatically from Looker/Databricks ingestion or saved manually via <code>dante_save_pattern</code>.</p>
-        <div class="k-search">
+        <button class="k-add-btn" onclick="addNewPattern()">+ Add Embedding</button>
+        <div class="k-search" style="margin-top:12px">
           <input type="text" id="pattern-search" placeholder="Search embeddings...">
           <button onclick="filterPatterns()">Search</button>
           <button onclick="clearPatternSearch()">Clear</button>
@@ -869,7 +887,7 @@ function renderGlossary() {
       + (def ? '<div class="k-item-text">' + esc(def) + '</div>' : '')
       + '</div>'
       + '<div class="k-actions">'
-      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteGlossaryTerm(' + JSON.stringify(term) + ')">&#10005;</button>'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteGlossaryTerm(\'' + esc(term).replace(/'/g, "\\'") + '\')">&#10005;</button>'
       + '</div>'
       + '</div>';
   });
@@ -930,13 +948,15 @@ function renderKeywords() {
   var html = '';
   entries.sort(function(a, b) { return a[0].localeCompare(b[0]); }).forEach(function(e) {
     var kw = e[0], content = e[1] || '';
+    var kwSafe = esc(kw).replace(/'/g, "\\'");
     html += '<div class="k-item">'
       + '<div class="k-item-body">'
       + '  <div class="k-item-title">' + esc(kw) + '</div>'
       + (content ? '<div class="k-item-text">' + esc(content) + '</div>' : '')
       + '</div>'
       + '<div class="k-actions">'
-      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteKeyword(' + JSON.stringify(kw) + ')">&#10005;</button>'
+      + '  <button class="k-icon-btn" title="Edit" onclick="editKeyword(\'' + kwSafe + '\')">&#9998;</button>'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteKeyword(\'' + kwSafe + '\')">&#10005;</button>'
       + '</div>'
       + '</div>';
   });
@@ -967,6 +987,45 @@ async function deleteKeyword(kw) {
     loadKeywords();
   } catch (e) {
     toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function addNewKeyword() {
+  $('#km-old-keyword').value = '';
+  $('#km-keyword').value = '';
+  $('#km-content').value = '';
+  document.querySelector('#keyword-modal .modal-title').textContent = 'Add Keyword';
+  $('#keyword-modal').classList.add('active');
+}
+
+function editKeyword(kw) {
+  $('#km-old-keyword').value = kw;
+  $('#km-keyword').value = kw;
+  $('#km-content').value = keywordsData[kw] || '';
+  document.querySelector('#keyword-modal .modal-title').textContent = 'Edit Keyword';
+  $('#keyword-modal').classList.add('active');
+}
+
+function closeKeywordModal() {
+  $('#keyword-modal').classList.remove('active');
+}
+
+async function saveKeywordEdit() {
+  var oldKw = $('#km-old-keyword').value;
+  var newKw = $('#km-keyword').value.trim();
+  var content = $('#km-content').value.trim();
+  if (!newKw) { toast('Keyword is required.', 'error'); return; }
+  try {
+    // Delete old keyword if renamed
+    if (oldKw && oldKw !== newKw) {
+      await api('DELETE', '/api/keywords/' + encodeURIComponent(oldKw));
+    }
+    await api('POST', '/api/keywords', { keyword: newKw, content: content });
+    toast('Keyword updated.', 'success');
+    closeKeywordModal();
+    loadKeywords();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
   }
 }
 
@@ -1009,17 +1068,19 @@ function renderPatterns(patterns) {
   }
   var html = '';
   patterns.forEach(function(p) {
-    var name = p.name || p.filename || '';
-    var filename = name.endsWith('.sql') ? name : name + '.sql';
-    var question = p.question || name;
-    var size = p.size != null ? ((p.size / 1024).toFixed(1) + ' KB') : '';
+    var filename = p.filename || (p.name || '') + '.sql';
+    var question = p.question || filename;
+    var desc = p.description || '';
+    var fnSafe = esc(filename).replace(/'/g, "\\'");
     html += '<div class="k-item">'
       + '<div class="k-item-body">'
       + '  <div class="k-item-title">' + esc(question) + '</div>'
-      + '  <div class="k-item-meta">' + esc(filename) + (size ? ' &middot; ' + esc(size) : '') + '</div>'
+      + (desc ? '<div class="k-item-text">' + esc(desc) + '</div>' : '')
+      + '  <div class="k-item-meta">' + esc(filename) + '</div>'
       + '</div>'
       + '<div class="k-actions">'
-      + '  <button class="k-icon-btn danger" title="Delete" onclick="deletePattern(' + JSON.stringify(filename) + ')">&#10005;</button>'
+      + '  <button class="k-icon-btn" title="Edit" onclick="editPattern(\'' + fnSafe + '\')">&#9998;</button>'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deletePattern(\'' + fnSafe + '\')">&#10005;</button>'
       + '</div>'
       + '</div>';
   });
@@ -1034,6 +1095,56 @@ async function deletePattern(filename) {
     loadPatterns();
   } catch (e) {
     toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function addNewPattern() {
+  $('#pm-old-filename').value = '';
+  $('#pm-question').value = '';
+  $('#pm-description').value = '';
+  $('#pm-tables').value = '';
+  $('#pm-sql').value = '';
+  document.querySelector('#pattern-modal .modal-title').textContent = 'Add Embedding';
+  $('#pattern-modal').classList.add('active');
+}
+
+function editPattern(filename) {
+  var p = allPatterns.find(function(x) { return x.filename === filename; });
+  if (!p) { toast('Pattern not found.', 'error'); return; }
+  $('#pm-old-filename').value = filename;
+  $('#pm-question').value = p.question || '';
+  $('#pm-description').value = p.description || '';
+  $('#pm-tables').value = (p.tables || []).join(', ');
+  $('#pm-sql').value = p.sql || '';
+  document.querySelector('#pattern-modal .modal-title').textContent = 'Edit Embedding';
+  $('#pattern-modal').classList.add('active');
+}
+
+function closePatternModal() {
+  $('#pattern-modal').classList.remove('active');
+}
+
+async function savePatternEdit() {
+  var filename = $('#pm-old-filename').value;
+  var question = $('#pm-question').value.trim();
+  if (!question) { toast('Question is required.', 'error'); return; }
+  var payload = {
+    question: question,
+    description: $('#pm-description').value.trim(),
+    tables: $('#pm-tables').value.split(',').map(function(t) { return t.trim(); }).filter(Boolean),
+    sql: $('#pm-sql').value
+  };
+  try {
+    if (filename) {
+      await api('PUT', '/api/patterns/' + encodeURIComponent(filename), payload);
+    } else {
+      await api('POST', '/api/patterns', payload);
+    }
+    toast(filename ? 'Pattern updated.' : 'Pattern created.', 'success');
+    closePatternModal();
+    loadPatterns();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
   }
 }
 
@@ -1255,6 +1366,7 @@ async function runIngest() {
    KEYBOARD SHORTCUTS
    ────────────────────────────────────────────────────────── */
 document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { closePatternModal(); closeKeywordModal(); }
   // Enter in keyword/glossary inline forms
   if (e.key === 'Enter' && e.target.id === 'keyword-input') addKeyword();
   if (e.key === 'Enter' && (e.target.id === 'glossary-term' || e.target.id === 'glossary-def')) addGlossaryTerm();
@@ -1267,5 +1379,60 @@ document.addEventListener('keydown', function(e) {
   loadConnections();
 })();
 </script>
+
+<!-- Keyword Edit Modal -->
+<div class="modal-overlay" id="keyword-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title">Edit Keyword</span>
+      <button class="modal-close" onclick="closeKeywordModal()">&#10005;</button>
+    </div>
+    <input type="hidden" id="km-old-keyword">
+    <div class="modal-field">
+      <label>Keyword</label>
+      <input type="text" id="km-keyword" placeholder="Keyword trigger (e.g. churn)">
+    </div>
+    <div class="modal-field">
+      <label>Content</label>
+      <textarea id="km-content" placeholder="Context to inject when keyword appears"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="k-btn-cancel" onclick="closeKeywordModal()">Cancel</button>
+      <button class="k-btn-save" onclick="saveKeywordEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pattern Edit Modal -->
+<div class="modal-overlay" id="pattern-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title">Edit Embedding</span>
+      <button class="modal-close" onclick="closePatternModal()">&#10005;</button>
+    </div>
+    <input type="hidden" id="pm-old-filename">
+    <div class="modal-field">
+      <label>Question</label>
+      <input type="text" id="pm-question" placeholder="What business question does this SQL answer?">
+    </div>
+    <div class="modal-field">
+      <label>Description</label>
+      <input type="text" id="pm-description" placeholder="Brief description of what the query does">
+    </div>
+    <div class="modal-field">
+      <label>Tables (comma-separated)</label>
+      <input type="text" id="pm-tables" placeholder="orders, users, products">
+    </div>
+    <div class="modal-field">
+      <label>SQL</label>
+      <textarea id="pm-sql" placeholder="SELECT ..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="k-btn-cancel" onclick="closePatternModal()">Cancel</button>
+      <button class="k-btn-save" onclick="savePatternEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
