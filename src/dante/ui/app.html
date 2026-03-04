@@ -256,15 +256,15 @@
 </header>
 
 <nav class="tabs" id="tab-nav">
-  <button class="active" data-tab="connections">Connections</button>
-  <button data-tab="knowledge">Knowledge</button>
+  <button class="active" data-tab="knowledge">Knowledge</button>
+  <button data-tab="datamanagement">Data Management</button>
+  <button data-tab="connections">Connections</button>
   <button data-tab="status">Status</button>
-  <button data-tab="config">Config</button>
 </nav>
 
 <main>
   <!-- ═══════════════════ CONNECTIONS TAB ═══════════════════ -->
-  <div class="tab-panel active" id="panel-connections">
+  <div class="tab-panel" id="panel-connections">
     <div class="card">
       <div class="conn-form-title">
         <h2 id="conn-form-heading">Add Connection</h2>
@@ -330,14 +330,13 @@
 
 
   <!-- ═══════════════════ KNOWLEDGE TAB ═══════════════════ -->
-  <div class="tab-panel" id="panel-knowledge">
+  <div class="tab-panel active" id="panel-knowledge">
     <div class="card">
       <div class="k-tabs">
         <button class="k-tab active" data-ktab="rules">Global Rules</button>
         <button class="k-tab" data-ktab="notes">Project Notes</button>
         <button class="k-tab" data-ktab="keywords">Keywords</button>
         <button class="k-tab" data-ktab="embeddings">Embeddings</button>
-        <button class="k-tab" data-ktab="datamanagement">Data Management</button>
       </div>
 
       <!-- Global Rules -->
@@ -381,148 +380,153 @@
         </div>
       </div>
 
-      <!-- Data Management -->
-      <div class="k-panel" id="kpanel-datamanagement">
+    </div>
+  </div>
 
-        <!-- Context Ingestion -->
-        <div class="dm-section">
-          <div class="dm-section-title">Context Ingestion</div>
-          <p class="dm-section-desc">Generate semantic embeddings from dashboard charts and data sources. These embeddings help the AI find relevant past queries and patterns.</p>
-          <div class="form-group" style="margin-bottom:12px;max-width:300px">
-            <label>Sources</label>
-            <select id="ingest-source">
-              <option value="all">All Sources</option>
-              <option value="looker">Looker</option>
-              <option value="databricks">Databricks</option>
-              <option value="warehouse">Warehouse</option>
-            </select>
+  <!-- ═══════════════════ DATA MANAGEMENT TAB ═══════════════════ -->
+  <div class="tab-panel" id="panel-datamanagement">
+    <div class="card">
+      <h2>Data Management</h2>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">Embedding ingestion, SQL processing, and API credentials for external integrations.</p>
+
+      <!-- Context Ingestion -->
+      <div class="dm-section">
+        <div class="dm-section-title">Context Ingestion</div>
+        <p class="dm-section-desc">Generate semantic embeddings from dashboard charts and data sources. These embeddings help the AI find relevant past queries and patterns.</p>
+        <div class="form-group" style="margin-bottom:12px;max-width:300px">
+          <label>Sources</label>
+          <select id="ingest-source">
+            <option value="all">All Sources</option>
+            <option value="looker">Looker</option>
+            <option value="databricks">Databricks</option>
+            <option value="warehouse">Warehouse</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+          <label class="dm-check-label">
+            <input type="checkbox" id="ingest-limit-check" onchange="toggleIngestLimit()">
+            <span>Limit dashboards</span>
+            <span class="dm-check-hint" id="ingest-limit-hint">Process all dashboards/tables — check to limit (used for testing)</span>
+          </label>
+          <div id="ingest-limit-row" style="display:none;padding-left:22px">
+            <input type="number" id="ingest-limit-num" value="2" min="1" max="1000" style="width:80px">
+            <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">dashboards max</span>
           </div>
-          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
-            <label class="dm-check-label">
-              <input type="checkbox" id="ingest-limit-check" onchange="toggleIngestLimit()">
-              <span>Limit dashboards</span>
-              <span class="dm-check-hint" id="ingest-limit-hint">Process all dashboards/tables &mdash; check to limit (used for testing)</span>
+          <label class="dm-check-label">
+            <label class="toggle-switch">
+              <input type="checkbox" id="ingest-skip-existing">
+              <span class="toggle-slider"></span>
             </label>
-            <div id="ingest-limit-row" style="display:none;padding-left:22px;display:none">
-              <input type="number" id="ingest-limit-num" value="2" min="1" max="1000" style="width:80px">
-              <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">dashboards max</span>
-            </div>
-            <label class="dm-check-label">
-              <label class="toggle-switch">
-                <input type="checkbox" id="ingest-skip-existing">
-                <span class="toggle-slider"></span>
-              </label>
-              <span>Skip Existing</span>
-            </label>
-          </div>
-          <button class="btn btn-primary" id="ingest-btn" onclick="runIngest()">Generate Embeddings</button>
+            <span>Skip Existing</span>
+          </label>
         </div>
-
-        <hr class="divider">
-
-        <!-- SQL Simplification -->
-        <div class="dm-section">
-          <div class="dm-section-title">SQL Simplification</div>
-          <p class="dm-section-desc">Use AI to strip BI-platform noise from raw SQL, improving embedding quality. This runs as a post-processing step on existing embeddings.</p>
-          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="toast('SQL simplification runs automatically during ingestion. Re-run ingestion to re-simplify.', 'info')">Simplify SQL</button>
-            <label class="dm-check-label">
-              <input type="checkbox" id="simplify-force">
-              <span>Force re-simplify all</span>
-            </label>
-          </div>
-        </div>
-
-        <hr class="divider">
-
-        <!-- SQL Merge -->
-        <div class="dm-section">
-          <div class="dm-section-title">SQL Merge</div>
-          <p class="dm-section-desc">Find and merge semantically similar embeddings to reduce redundancy and improve retrieval quality.</p>
-          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="toast('SQL merge coming soon.', 'info')">Find Candidates</button>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:12px;color:var(--text-secondary)">Similarity</span>
-              <input type="range" id="merge-similarity" min="50" max="100" value="92"
-                oninput="document.getElementById('merge-similarity-val').textContent=this.value+'%'"
-                style="width:120px;accent-color:var(--highlight)">
-              <span id="merge-similarity-val" style="font-size:13px;font-weight:700;min-width:36px">92%</span>
-            </div>
-          </div>
-        </div>
-
-        <hr class="divider">
-
-        <!-- Recent Jobs -->
-        <div class="dm-section">
-          <div class="dm-section-title">Recent Jobs</div>
-          <div id="jobs-list" style="margin-top:8px">
-            <div class="k-empty">No jobs yet.</div>
-          </div>
-        </div>
-
-        <hr class="divider">
-
-        <!-- API Credentials (collapsible) -->
-        <div class="dm-section">
-          <div class="dm-creds-header" onclick="toggleCredentials()">
-            <div class="dm-section-title" style="margin-bottom:0">API Credentials</div>
-            <span id="creds-toggle-icon" style="color:var(--text-secondary);font-size:12px">&#9660; Show</span>
-          </div>
-          <div id="credentials-section" style="display:none;margin-top:14px">
-            <div style="margin-bottom:16px">
-              <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">OpenAI</h3>
-              <div class="form-group">
-                <label for="cred-openai-key">API Key</label>
-                <div style="display:flex;gap:8px">
-                  <input type="password" id="cred-openai-key" placeholder="sk-..." style="flex:1">
-                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-openai-key')">Show</button>
-                </div>
-              </div>
-            </div>
-            <div style="margin-bottom:16px">
-              <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Looker <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— BI platform dashboard ingestion</span></h3>
-              <div class="form-grid cols-3">
-                <div class="form-group full">
-                  <label for="cred-looker-url">Base URL</label>
-                  <input type="text" id="cred-looker-url" placeholder="https://mycompany.looker.com:19999">
-                </div>
-                <div class="form-group">
-                  <label for="cred-looker-id">Client ID</label>
-                  <input type="text" id="cred-looker-id" placeholder="client_id">
-                </div>
-                <div class="form-group">
-                  <label for="cred-looker-secret">Client Secret</label>
-                  <div style="display:flex;gap:8px">
-                    <input type="password" id="cred-looker-secret" placeholder="client_secret" style="flex:1">
-                    <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style="margin-bottom:16px">
-              <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Databricks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— dashboard ingestion only</span></h3>
-              <div class="form-grid">
-                <div class="form-group full">
-                  <label for="cred-dbx-url">Workspace URL</label>
-                  <input type="text" id="cred-dbx-url" placeholder="https://dbc-xxxxx.cloud.databricks.com">
-                </div>
-                <div class="form-group">
-                  <label for="cred-dbx-token">Personal Access Token</label>
-                  <div style="display:flex;gap:8px">
-                    <input type="password" id="cred-dbx-token" placeholder="dapi..." style="flex:1">
-                    <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="k-form-row">
-              <button class="k-btn-save" onclick="saveSources()">Save Credentials</button>
-            </div>
-          </div>
-        </div>
-
+        <button class="btn btn-primary" id="ingest-btn" onclick="runIngest()">Generate Embeddings</button>
       </div>
+
+      <hr class="divider">
+
+      <!-- SQL Simplification -->
+      <div class="dm-section">
+        <div class="dm-section-title">SQL Simplification</div>
+        <p class="dm-section-desc">Use AI to strip BI-platform noise from raw SQL, improving embedding quality. This runs as a post-processing step on existing embeddings.</p>
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="toast('SQL simplification runs automatically during ingestion. Re-run ingestion to re-simplify.', 'info')">Simplify SQL</button>
+          <label class="dm-check-label">
+            <input type="checkbox" id="simplify-force">
+            <span>Force re-simplify all</span>
+          </label>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- SQL Merge -->
+      <div class="dm-section">
+        <div class="dm-section-title">SQL Merge</div>
+        <p class="dm-section-desc">Find and merge semantically similar embeddings to reduce redundancy and improve retrieval quality.</p>
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="toast('SQL merge coming soon.', 'info')">Find Candidates</button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:var(--text-secondary)">Similarity</span>
+            <input type="range" id="merge-similarity" min="50" max="100" value="92"
+              oninput="document.getElementById('merge-similarity-val').textContent=this.value+'%'"
+              style="width:120px;accent-color:var(--highlight)">
+            <span id="merge-similarity-val" style="font-size:13px;font-weight:700;min-width:36px">92%</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Recent Jobs -->
+      <div class="dm-section">
+        <div class="dm-section-title">Recent Jobs</div>
+        <div id="jobs-list" style="margin-top:8px">
+          <div class="k-empty">No jobs yet.</div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- API Credentials -->
+      <div class="dm-section">
+        <div class="dm-creds-header" onclick="toggleCredentials()">
+          <div class="dm-section-title" style="margin-bottom:0">API Credentials</div>
+          <span id="creds-toggle-icon" style="color:var(--text-secondary);font-size:12px">&#9660; Show</span>
+        </div>
+        <div id="credentials-section" style="display:none;margin-top:14px">
+          <div style="margin-bottom:16px">
+            <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">OpenAI</h3>
+            <div class="form-group">
+              <label for="cred-openai-key">API Key</label>
+              <div style="display:flex;gap:8px">
+                <input type="password" id="cred-openai-key" placeholder="sk-..." style="flex:1">
+                <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-openai-key')">Show</button>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Looker <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— BI platform dashboard ingestion</span></h3>
+            <div class="form-grid cols-3">
+              <div class="form-group full">
+                <label for="cred-looker-url">Base URL</label>
+                <input type="text" id="cred-looker-url" placeholder="https://mycompany.looker.com:19999">
+              </div>
+              <div class="form-group">
+                <label for="cred-looker-id">Client ID</label>
+                <input type="text" id="cred-looker-id" placeholder="client_id">
+              </div>
+              <div class="form-group">
+                <label for="cred-looker-secret">Client Secret</label>
+                <div style="display:flex;gap:8px">
+                  <input type="password" id="cred-looker-secret" placeholder="client_secret" style="flex:1">
+                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Databricks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— dashboard ingestion only</span></h3>
+            <div class="form-grid">
+              <div class="form-group full">
+                <label for="cred-dbx-url">Workspace URL</label>
+                <input type="text" id="cred-dbx-url" placeholder="https://dbc-xxxxx.cloud.databricks.com">
+              </div>
+              <div class="form-group">
+                <label for="cred-dbx-token">Personal Access Token</label>
+                <div style="display:flex;gap:8px">
+                  <input type="password" id="cred-dbx-token" placeholder="dapi..." style="flex:1">
+                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="k-form-row">
+            <button class="k-btn-save" onclick="saveSources()">Save Credentials</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -537,24 +541,6 @@
     </div>
   </div>
 
-  <!-- ═══════════════════ CONFIG TAB ═══════════════════ -->
-  <div class="tab-panel" id="panel-config">
-    <div class="card">
-      <h2>Project Config</h2>
-      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">Settings stored in <code>.dante/config.yaml</code> for this project. The default connection tells Claude which database to query when you don't specify one.</p>
-      <div class="form-grid">
-        <div class="form-group">
-          <label for="config-default-conn">Default Connection</label>
-          <select id="config-default-conn">
-            <option value="">None</option>
-          </select>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="saveConfig()">Save Config</button>
-      </div>
-    </div>
-  </div>
 </main>
 
 <div id="toast-container"></div>
@@ -565,6 +551,7 @@
    ────────────────────────────────────────────────────────── */
 let connections = [];
 let editingConnectionName = null;
+let activeConnectionName = null;
 
 /* ──────────────────────────────────────────────────────────
    HELPERS
@@ -626,7 +613,7 @@ $('#tab-nav').addEventListener('click', function(e) {
   var tab = e.target.dataset.tab;
   if (tab === 'status') loadStatus();
   if (tab === 'knowledge') { loadRules(); loadNotes(); loadKeywords(); loadPatterns(); }
-  if (tab === 'config') loadConfig();
+  if (tab === 'datamanagement') { loadSources(); loadJobs(); }
   if (tab === 'connections') loadConnections();
 });
 
@@ -730,18 +717,26 @@ function renderConnections() {
   }
   var html = '<div class="item-list">';
   connections.forEach(function(c) {
+    var nameSafe = esc(c.name).replace(/'/g, "\\'");
+    var isActive = c.name === activeConnectionName;
     var dialectBadge = c.dialect ? '<code>' + esc(c.dialect) + '</code>' : '';
     var hostInfo = c.host ? esc(c.host) + (c.port ? ':' + esc(c.port) : '') : '';
     var dbInfo = c.database ? '/' + esc(c.database) : '';
     var schemaInfo = c.schema ? ' (' + esc(c.schema) + ')' : '';
-    html += '<div class="item-row">'
+    var activeDot = isActive ? '<span style="color:var(--success);font-size:10px;margin-right:6px" title="Active connection">&#9679;</span>' : '';
+    var activeLabel = isActive ? ' <span style="font-size:11px;color:var(--success);font-weight:600">ACTIVE</span>' : '';
+    var activeBtn = isActive
+      ? ''
+      : '<button class="btn btn-sm btn-secondary" onclick="setActiveConnection(\'' + nameSafe + '\')">Set Active</button>';
+    html += '<div class="item-row"' + (isActive ? ' style="border-left:2px solid var(--success);padding-left:10px"' : '') + '>'
       + '<div class="item-info">'
-      + '  <span class="item-label">' + esc(c.name) + ' ' + dialectBadge + '</span>'
+      + '  <span class="item-label">' + activeDot + esc(c.name) + ' ' + dialectBadge + activeLabel + '</span>'
       + '  <span class="item-meta">' + hostInfo + dbInfo + schemaInfo + '</span>'
       + '</div>'
       + '<div style="display:flex;gap:6px">'
-      + '  <button class="btn btn-sm btn-secondary" onclick="editConnection(\'' + esc(c.name).replace(/'/g, "\\'") + '\')">Edit</button>'
-      + '  <button class="btn btn-sm btn-danger" onclick="deleteConnection(\'' + esc(c.name).replace(/'/g, "\\'") + '\')">Delete</button>'
+      + activeBtn
+      + '  <button class="btn btn-sm btn-secondary" onclick="editConnection(\'' + nameSafe + '\')">Edit</button>'
+      + '  <button class="btn btn-sm btn-danger" onclick="deleteConnection(\'' + nameSafe + '\')">Delete</button>'
       + '</div>'
       + '</div>';
   });
@@ -753,25 +748,29 @@ async function loadConnections() {
   try {
     var data = await api('GET', '/api/connections');
     connections = Array.isArray(data) ? data : (data && data.connections ? data.connections : []);
+    // Load active connection
+    try {
+      var cfg = await api('GET', '/api/config');
+      activeConnectionName = (cfg && cfg.default_connection) || null;
+    } catch (_) {
+      activeConnectionName = null;
+    }
     renderConnections();
-    populateConnectionDropdown();
   } catch (e) {
     connections = [];
     renderConnections();
   }
 }
 
-function populateConnectionDropdown() {
-  var sel = $('#config-default-conn');
-  var current = sel.value;
-  sel.innerHTML = '<option value="">None</option>';
-  connections.forEach(function(c) {
-    var opt = document.createElement('option');
-    opt.value = c.name;
-    opt.textContent = c.name;
-    sel.appendChild(opt);
-  });
-  sel.value = current;
+async function setActiveConnection(name) {
+  try {
+    await api('POST', '/api/config', { default_connection: name });
+    activeConnectionName = name;
+    renderConnections();
+    toast('Active connection set to ' + name, 'success');
+  } catch (e) {
+    toast('Failed: ' + e.message, 'error');
+  }
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -833,7 +832,6 @@ document.addEventListener('click', function(e) {
   var tab = btn.dataset.ktab;
   var panel = card.querySelector('#kpanel-' + tab);
   if (panel) panel.classList.add('active');
-  if (tab === 'datamanagement') { loadSources(); loadJobs(); }
 });
 
 function kShowForm(name) {
@@ -1393,31 +1391,6 @@ function renderStatus(data) {
   container.innerHTML = html;
 }
 
-/* ──────────────────────────────────────────────────────────
-   CONFIG
-   ────────────────────────────────────────────────────────── */
-async function loadConfig() {
-  // Ensure connection dropdown is populated
-  await loadConnections();
-  try {
-    var data = await api('GET', '/api/config');
-    if (data) {
-      $('#config-default-conn').value = data.default_connection || '';
-    }
-  } catch (_) {}
-}
-
-async function saveConfig() {
-  var payload = {
-    default_connection: $('#config-default-conn').value
-  };
-  try {
-    await api('POST', '/api/config', payload);
-    toast('Config saved.', 'success');
-  } catch (e) {
-    toast('Save failed: ' + e.message, 'error');
-  }
-}
 
 /* ──────────────────────────────────────────────────────────
    DATA MANAGEMENT
@@ -1547,7 +1520,10 @@ document.addEventListener('keydown', function(e) {
    INIT
    ────────────────────────────────────────────────────────── */
 (function init() {
-  loadConnections();
+  loadRules();
+  loadNotes();
+  loadKeywords();
+  loadPatterns();
 })();
 </script>
 

@@ -528,6 +528,12 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             except Exception:
                 pass
 
+        # Check integration credentials
+        from dante.config import load_global_credentials
+        creds = load_global_credentials()
+        looker_configured = bool(creds.get("looker", {}).get("base_url"))
+        databricks_configured = bool(creds.get("databricks", {}).get("workspace_url"))
+
         return {
             "connection": {
                 "name": conn_name,
@@ -541,6 +547,8 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 "patterns": patterns_count,
                 "embeddings": embeddings_count,
             },
+            "looker_configured": looker_configured,
+            "databricks_configured": databricks_configured,
         }
 
     def log_message(self, format, *args):
