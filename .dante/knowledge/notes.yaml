@@ -1,0 +1,33 @@
+data_overview: |
+  This dataset contains trading activity from the top 2000 Polymarket wallets since July 1, 2024:
+  - 100M+ trades in chain_trades_top2000.parquet
+  - 898 analyzed wallets in wallet_notes.parquet (after filtering)
+  - 469,521 unique markets in polymarket_markets.parquet
+
+data_relationships: |
+  chain_trades (maker_asset/taker_asset)
+    → token_lookup (token_id → condition_id, outcome)
+      → polymarket_markets (condition_id → question, event_title)
+
+strategy_findings: |
+  | Strategy | Count | Avg Win Rate | Median Capital |
+  |----------|-------|--------------|----------------|
+  | sports_bettor | 188 | 58% | $12K |
+  | bet_the_field_trade | 185 | 14%* | $9K |
+  | active_trader | 156 | 22% | $10K |
+  | bet_the_field_hold | 97 | 74% | $211K |
+  | crypto_trader | 82 | 68% | - |
+  | political_specialist | 43 | 38% | - |
+  | longshot_buyer | 23 | 27% | - |
+
+  *Win rate is misleading for traders - they profit from selling, not redemptions.
+
+win_rate_caveat: "Win rate is only meaningful for hold strategies. Traders show 0% win rate but can be highly profitable."
+
+pnl_formula: "P&L = sell_vol + redemptions - buy_vol is a better metric for comparing strategies."
+
+condition_structure: "Every Polymarket condition has exactly 2 outcomes (YES/NO). Multi-outcome events use multiple conditions grouped by event_title."
+
+bet_the_field_grouping: "Bet-the-field requires grouping by event_title, not condition_id. One event can have 10+ conditions."
+
+market_maker_exclusion: "Market makers were excluded (maker_ratio > 70%, two_sided > 30%, trades > 5000). They profit from spread, not predictions."

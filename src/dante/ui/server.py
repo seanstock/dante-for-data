@@ -238,11 +238,22 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 self._json_response({})
 
         elif path == "/api/notes":
-            notes_path = knowledge_dir() / "notes.md"
+            notes_path = project_dir(self.project_root) / "knowledge" / "notes.yaml"
             if notes_path.exists():
-                self._json_response({"content": notes_path.read_text(encoding="utf-8")})
+                with open(notes_path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                self._json_response(data)
             else:
-                self._json_response({"content": ""})
+                self._json_response({})
+
+        elif path == "/api/rules":
+            rules_path = knowledge_dir() / "rules.yaml"
+            if rules_path.exists():
+                with open(rules_path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                self._json_response(data)
+            else:
+                self._json_response({})
 
         elif path == "/api/patterns":
             from dante.knowledge.patterns import list_patterns
@@ -339,10 +350,37 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             self._json_response({"ok": True, "filename": new_path.name})
 
         elif path == "/api/notes":
-            content = data.get("content", "")
-            notes_path = knowledge_dir() / "notes.md"
+            name = data.get("name")
+            content = data.get("content")
+            if not name:
+                self._json_response({"error": "Name required"}, 400)
+                return
+            notes_path = project_dir(self.project_root) / "knowledge" / "notes.yaml"
             notes_path.parent.mkdir(parents=True, exist_ok=True)
-            notes_path.write_text(content, encoding="utf-8")
+            existing = {}
+            if notes_path.exists():
+                with open(notes_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+            existing[name] = content
+            with open(notes_path, "w", encoding="utf-8") as f:
+                yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
+            self._json_response({"ok": True})
+
+        elif path == "/api/rules":
+            name = data.get("name")
+            content = data.get("content")
+            if not name:
+                self._json_response({"error": "Name required"}, 400)
+                return
+            rules_path = knowledge_dir() / "rules.yaml"
+            rules_path.parent.mkdir(parents=True, exist_ok=True)
+            existing = {}
+            if rules_path.exists():
+                with open(rules_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+            existing[name] = content
+            with open(rules_path, "w", encoding="utf-8") as f:
+                yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
             self._json_response({"ok": True})
 
         elif path == "/api/ingest":
@@ -403,6 +441,28 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 existing.pop(keyword, None)
                 with open(kw_path, "w", encoding="utf-8") as f:
                     yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
+            self._json_response({"ok": True})
+
+        elif path.startswith("/api/notes/"):
+            name = path.split("/")[-1]
+            notes_path = project_dir(self.project_root) / "knowledge" / "notes.yaml"
+            if notes_path.exists():
+                with open(notes_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+                existing.pop(name, None)
+                with open(notes_path, "w", encoding="utf-8") as f:
+                    yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
+            self._json_response({"ok": True})
+
+        elif path.startswith("/api/rules/"):
+            name = path.split("/")[-1]
+            rules_path = knowledge_dir() / "rules.yaml"
+            if rules_path.exists():
+                with open(rules_path, encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+                existing.pop(name, None)
+                with open(rules_path, "w", encoding="utf-8") as f:
+                    yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
             self._json_response({"ok": True})
 
         elif path.startswith("/api/patterns/"):

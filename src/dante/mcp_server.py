@@ -20,7 +20,7 @@ from mcp.types import TextContent, Tool
 from dante.tools.sql_tools import dante_sql, dante_tables, dante_describe, dante_profile
 from dante.tools.chart_tools import dante_chart
 from dante.tools.knowledge_tools import dante_search, dante_save_pattern, dante_define_term
-from dante.tools.app_tools import dante_app_create, dante_app_add_value, dante_app_render
+from dante.tools.app_tools import dante_app_create, dante_app_add_value, dante_app_set_html, dante_app_render
 from dante.tools.analyze_tools import dante_checkpoint, dante_rollback
 
 # ---------------------------------------------------------------------------
@@ -262,9 +262,9 @@ TOOLS = [
                 },
                 "template": {
                     "type": "string",
-                    "description": "App template: 'dashboard', 'report', or 'explorer'.",
+                    "description": "App template: 'dashboard', 'report', 'map', 'profile', or 'blank'.",
                     "default": "dashboard",
-                    "enum": ["dashboard", "report", "explorer"],
+                    "enum": ["dashboard", "report", "map", "profile", "blank"],
                 },
             },
             "required": ["title"],
@@ -293,12 +293,43 @@ TOOLS = [
                 },
                 "format": {
                     "type": "string",
-                    "description": "Render format: 'scalar', 'table', 'bar', 'line', 'pie'.",
+                    "description": "Render format: 'scalar' (first cell), 'table' (HTML table), 'chart' (Plotly bar).",
                     "default": "scalar",
-                    "enum": ["scalar", "table", "bar", "line", "pie"],
+                    "enum": ["scalar", "table", "chart"],
                 },
             },
             "required": ["app_id", "name", "sql"],
+        },
+    ),
+    Tool(
+        name="dante_app_set_html",
+        description=(
+            "Set the HTML body for a data app. Use {SLOT_NAME} placeholders "
+            "where computed values should appear. Template CSS classes are already loaded."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "type": "string",
+                    "description": "App identifier from dante_app_create.",
+                },
+                "html": {
+                    "type": "string",
+                    "description": "HTML body with {SLOT_NAME} placeholders for computed values.",
+                },
+                "css": {
+                    "type": "string",
+                    "description": "Optional custom CSS to add beyond the template styles.",
+                    "default": "",
+                },
+                "js": {
+                    "type": "string",
+                    "description": "Optional custom JavaScript.",
+                    "default": "",
+                },
+            },
+            "required": ["app_id", "html"],
         },
     ),
     Tool(
@@ -339,18 +370,19 @@ TOOLS = [
     Tool(
         name="dante_rollback",
         description=(
-            "Roll back to a previously saved analysis checkpoint, "
-            "restoring the state that was captured at that point."
+            "Roll back to a previously saved analysis checkpoint. "
+            "If no name is given, restores the most recent checkpoint."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "The checkpoint name to restore.",
+                    "description": "The checkpoint name to restore. Omit for most recent.",
+                    "default": "",
                 },
             },
-            "required": ["name"],
+            "required": [],
         },
     ),
 ]
@@ -408,6 +440,12 @@ _DISPATCH = {
         sql=args["sql"],
         format=args.get("format", "scalar"),
     ),
+    "dante_app_set_html": lambda args: dante_app_set_html(
+        app_id=args["app_id"],
+        html=args["html"],
+        css=args.get("css", ""),
+        js=args.get("js", ""),
+    ),
     "dante_app_render": lambda args: dante_app_render(
         app_id=args["app_id"],
     ),
@@ -415,7 +453,7 @@ _DISPATCH = {
         name=args["name"],
     ),
     "dante_rollback": lambda args: dante_rollback(
-        name=args["name"],
+        name=args.get("name", ""),
     ),
 }
 

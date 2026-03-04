@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def dante_search(query: str, top_k: int = 5) -> str:
+def dante_search(query: str, top_k: int = 10) -> str:
     """Search the project knowledge base for relevant SQL patterns, terms, and notes."""
     from dante.knowledge.search import search
     from dante.knowledge import glossary

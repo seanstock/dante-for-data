@@ -25,6 +25,7 @@ Use MCP tools for interactive work. Use `import dante` for scripted multi-step a
 | `dante_chart` | Generate a Plotly chart → HTML or PNG file. |
 | `dante_app_create` | Create a Data App from a template (dashboard, report, map, profile, blank). |
 | `dante_app_add_value` | Bind a SQL query to a computed value slot in a Data App. |
+| `dante_app_set_html` | Set the HTML body with {SLOT_NAME} placeholders for computed values. |
 | `dante_app_render` | Execute all queries, substitute values, write final HTML. |
 | `dante_checkpoint` | Snapshot analysis/ and outputs/ directories. |
 | `dante_rollback` | Restore to a previous checkpoint. |
@@ -49,7 +50,7 @@ dante.report(title=..., sections=[...], charts=[...])   # → HTML report
 
 ## Rules
 
-1. Search knowledge first. Before writing SQL, call `dante_search`. If similarity > 0.7, adapt the match.
+1. Search knowledge first. Before writing SQL, call `dante_search`. Adapt the closest matches.
 2. Explore before querying. Call `dante_describe` on unfamiliar tables before writing SQL.
 3. Save validated patterns. When the user confirms a result, call `dante_save_pattern`.
 4. Never hardcode data into Data Apps. Always use `dante_app_add_value`.
@@ -60,9 +61,13 @@ dante.report(title=..., sections=[...], charts=[...])   # → HTML report
 
 @.dante/knowledge/terms.yaml
 
-## Notes
+## Project Notes
 
-@.dante/knowledge/notes.md
+@.dante/knowledge/notes.yaml
+
+## Rules
+
+@~/.dante/knowledge/rules.yaml
 """
 
 _CURSORRULES = """\
@@ -84,13 +89,14 @@ You have MCP tools for database queries, charts, dashboards, and knowledge searc
 | `dante_chart` | Generate a Plotly chart → HTML or PNG file. |
 | `dante_app_create` | Create a Data App from a template (dashboard, report, map, profile, blank). |
 | `dante_app_add_value` | Bind a SQL query to a computed value slot in a Data App. |
+| `dante_app_set_html` | Set the HTML body with {SLOT_NAME} placeholders for computed values. |
 | `dante_app_render` | Execute all queries, substitute values, write final HTML. |
 | `dante_checkpoint` | Snapshot analysis/ and outputs/ directories. |
 | `dante_rollback` | Restore to a previous checkpoint. |
 
 ## Rules
 
-1. Search knowledge first. Before writing SQL, call `dante_search`. If similarity > 0.7, adapt the match.
+1. Search knowledge first. Before writing SQL, call `dante_search`. Adapt the closest matches.
 2. Explore before querying. Call `dante_describe` on unfamiliar tables before writing SQL.
 3. Save validated patterns. When the user confirms a result, call `dante_save_pattern`.
 4. Never hardcode data into Data Apps. Always use `dante_app_add_value`.
@@ -102,7 +108,7 @@ You have MCP tools for database queries, charts, dashboards, and knowledge searc
 ### Query Exploration
 
 1. Run `dante_search` with the user's question to find matching patterns
-2. If a match has similarity > 0.7, adapt its SQL. Otherwise, explore:
+2. If `dante_search` returns relevant matches, adapt the closest SQL. Otherwise, explore:
    - `dante_tables` to find relevant tables
    - `dante_describe` on candidate tables
 3. Write and run the query with `dante_sql`
@@ -114,8 +120,9 @@ You have MCP tools for database queries, charts, dashboards, and knowledge searc
 1. Search knowledge for relevant patterns: `dante_search`
 2. Explore schema to understand available data
 3. Create the app: `dante_app_create` with template "dashboard"
-4. Add computed values for each KPI and chart (NEVER hardcode data)
-5. Render and report the output path
+4. Add computed values for each KPI and chart: `dante_app_add_value` (NEVER hardcode data)
+5. Set the HTML body with {SLOT_NAME} placeholders: `dante_app_set_html`
+6. Render and report the output path: `dante_app_render`
 
 Available templates: dashboard, report, map, profile, blank
 Dashboard CSS classes: .kpis, .kpi, .kpi-label, .kpi-value, .kpi-change.up/.down, .chart-card, .chart-card.wide, .data-table
@@ -134,9 +141,9 @@ Dashboard CSS classes: .kpis, .kpi, .kpi-label, .kpi-value, .kpi-change.up/.down
 
 See `.dante/knowledge/terms.yaml` for business term definitions.
 
-## Notes
+## Project Notes
 
-See `.dante/knowledge/notes.md` for project notes and context.
+See `.dante/knowledge/notes.yaml` for project-specific notes and context.
 """
 
 _MCP_JSON = {
@@ -181,7 +188,7 @@ allowed-tools: Bash, dante_sql, dante_tables, dante_describe, dante_profile, dan
 The user wants to explore data. Follow this protocol:
 
 1. Run `dante_search` with the user's question to find matching patterns
-2. If a match has similarity > 0.7, adapt its SQL. Otherwise, explore:
+2. If `dante_search` returns relevant matches, adapt the closest SQL. Otherwise, explore:
    - `dante_tables` to find relevant tables
    - `dante_describe` on candidate tables
 3. Write and run the query with `dante_sql`
@@ -195,7 +202,7 @@ _DASHBOARD_SKILL = """\
 ---
 name: dashboard
 description: Build an interactive dashboard from data queries
-allowed-tools: Bash, dante_sql, dante_search, dante_chart, dante_app_create, dante_app_add_value, dante_app_render
+allowed-tools: Bash, dante_sql, dante_search, dante_chart, dante_app_create, dante_app_add_value, dante_app_set_html, dante_app_render
 argument-hint: "[title or topic]"
 ---
 
@@ -204,9 +211,9 @@ Build a Data App dashboard for: $ARGUMENTS
 1. Search knowledge for relevant patterns: `dante_search`
 2. Explore schema to understand available data
 3. Create the app: `dante_app_create` with template "dashboard"
-4. Add computed values for each KPI and chart (NEVER hardcode data)
-5. Write the HTML using template CSS classes
-6. Render and report the output path
+4. Add computed values for each KPI and chart: `dante_app_add_value` (NEVER hardcode data)
+5. Set the HTML body with {SLOT_NAME} placeholders: `dante_app_set_html`
+6. Render and report the output path: `dante_app_render`
 
 Available templates: dashboard, report, map, profile, blank
 Dashboard CSS classes: .kpis, .kpi, .kpi-label, .kpi-value, .kpi-change.up/.down, .chart-card, .chart-card.wide, .data-table
@@ -293,19 +300,24 @@ def scaffold_project(name: str, root: Path | None = None, cursor: bool = False) 
     # .dante/
     dante_dir = project / ".dante"
     dante_dir.mkdir(exist_ok=True)
-    knowledge_dir = dante_dir / "knowledge"
-    knowledge_dir.mkdir(exist_ok=True)
-    (knowledge_dir / "patterns").mkdir(exist_ok=True)
-
-    # Config
     _write_if_not_exists(dante_dir / "config.yaml", "# default_connection: my-connection\n")
-    _write_if_not_exists(knowledge_dir / "terms.yaml", "# Business glossary — add terms here\n# ARR: \"Annual Recurring Revenue. MRR * 12.\"\n")
-    _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers — add keywords here\n# revenue: \"Revenue = SUM(amount) from orders table.\"\n")
-    _write_if_not_exists(knowledge_dir / "notes.md", "# Project Notes\n\nAdd notes here. Claude sees these at the start of every session.\n")
+
+    # Seed global rules.yaml
+    from dante.config import knowledge_dir as global_knowledge_dir
+    _write_if_not_exists(global_knowledge_dir() / "rules.yaml", "# Global rules — add brand colors, coding preferences, conventions here\n# design_system: \"Use dark mode with #111111 background.\"\n")
 
     if cursor:
         _write_if_not_exists(project / ".cursorrules", _CURSORRULES)
+        _write_cursor_rules(project)
     else:
+        # Project-local knowledge (Claude Code reads via @ imports in CLAUDE.md)
+        knowledge_dir = dante_dir / "knowledge"
+        knowledge_dir.mkdir(exist_ok=True)
+        (knowledge_dir / "patterns").mkdir(exist_ok=True)
+        _write_if_not_exists(knowledge_dir / "terms.yaml", "# Business glossary — add terms here\n# ARR: \"Annual Recurring Revenue. MRR * 12.\"\n")
+        _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers — add keywords here\n# revenue: \"Revenue = SUM(amount) from orders table.\"\n")
+        _write_if_not_exists(knowledge_dir / "notes.yaml", "# Project notes — add project-specific context here\n# data_overview: \"Description of the dataset.\"\n")
+
         # .claude/skills/
         skills_dir = project / ".claude" / "skills"
         _write_skill(skills_dir / "query", _QUERY_SKILL)
@@ -334,18 +346,24 @@ def scaffold_in_place(root: Path | None = None, cursor: bool = False) -> Path:
 
     dante_dir = root / ".dante"
     dante_dir.mkdir(exist_ok=True)
-    knowledge_dir = dante_dir / "knowledge"
-    knowledge_dir.mkdir(exist_ok=True)
-    (knowledge_dir / "patterns").mkdir(exist_ok=True)
-
     _write_if_not_exists(dante_dir / "config.yaml", "# default_connection: my-connection\n")
-    _write_if_not_exists(knowledge_dir / "terms.yaml", "# Business glossary\n")
-    _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers\n")
-    _write_if_not_exists(knowledge_dir / "notes.md", "# Project Notes\n\nAdd notes here.\n")
+
+    # Seed global rules.yaml
+    from dante.config import knowledge_dir as global_knowledge_dir
+    _write_if_not_exists(global_knowledge_dir() / "rules.yaml", "# Global rules — add brand colors, coding preferences, conventions here\n# design_system: \"Use dark mode with #111111 background.\"\n")
 
     if cursor:
         _write_if_not_exists(root / ".cursorrules", _CURSORRULES)
+        _write_cursor_rules(root)
     else:
+        # Project-local knowledge (Claude Code reads via @ imports in CLAUDE.md)
+        knowledge_dir = dante_dir / "knowledge"
+        knowledge_dir.mkdir(exist_ok=True)
+        (knowledge_dir / "patterns").mkdir(exist_ok=True)
+        _write_if_not_exists(knowledge_dir / "terms.yaml", "# Business glossary\n")
+        _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers\n")
+        _write_if_not_exists(knowledge_dir / "notes.yaml", "# Project notes — add project-specific context here\n# data_overview: \"Description of the dataset.\"\n")
+
         skills_dir = root / ".claude" / "skills"
         _write_skill(skills_dir / "query", _QUERY_SKILL)
         _write_skill(skills_dir / "dashboard", _DASHBOARD_SKILL)
@@ -358,6 +376,73 @@ def scaffold_in_place(root: Path | None = None, cursor: bool = False) -> Path:
     _write_if_not_exists(root / ".gitignore", _GITIGNORE)
 
     return root
+
+
+def _write_cursor_rules(project: Path) -> None:
+    """Write .cursor/rules/*.mdc files for Cursor IDE integration."""
+    from dante.config import knowledge_dir as global_knowledge_dir
+
+    rules_dir = project / ".cursor" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+
+    # Skill .mdc files
+    _write_if_not_exists(rules_dir / "dante-query.mdc", _mdc(
+        "Query exploration workflow — use when the user wants to explore data or run SQL",
+        _QUERY_SKILL.split("---", 2)[-1].strip(),  # strip YAML frontmatter
+    ))
+    _write_if_not_exists(rules_dir / "dante-dashboard.mdc", _mdc(
+        "Dashboard building workflow — use when the user wants to create a dashboard",
+        _DASHBOARD_SKILL.split("---", 2)[-1].strip(),
+    ))
+    _write_if_not_exists(rules_dir / "dante-analyze.mdc", _mdc(
+        "Multi-step analysis workflow — use when the user wants a structured analysis",
+        _ANALYZE_SKILL.split("---", 2)[-1].strip(),
+    ))
+
+    # Sync global knowledge into .mdc
+    gk = global_knowledge_dir()
+
+    # Project rules from global rules.yaml
+    rules_content = ""
+    rules_path = gk / "rules.yaml"
+    if rules_path.exists():
+        rules_content = rules_path.read_text(encoding="utf-8")
+    if rules_content.strip():
+        _write_mdc(rules_dir / "project-rules.mdc", _mdc(
+            "Global project rules — brand colors, coding preferences, conventions",
+            "```yaml\n" + rules_content + "\n```",
+        ))
+
+    # Knowledge: terms + project notes
+    knowledge_parts = []
+    terms_path = gk / "terms.yaml"
+    if terms_path.exists():
+        terms_content = terms_path.read_text(encoding="utf-8")
+        if terms_content.strip():
+            knowledge_parts.append("## Business Glossary\n\n```yaml\n" + terms_content + "\n```")
+
+    notes_path = project / ".dante" / "knowledge" / "notes.yaml"
+    if notes_path.exists():
+        notes_content = notes_path.read_text(encoding="utf-8")
+        if notes_content.strip():
+            knowledge_parts.append("## Project Notes\n\n```yaml\n" + notes_content + "\n```")
+
+    if knowledge_parts:
+        _write_mdc(rules_dir / "knowledge.mdc", _mdc(
+            "Project knowledge — business terms, glossary, and project-specific notes",
+            "\n\n".join(knowledge_parts),
+        ))
+
+
+def _mdc(description: str, content: str) -> str:
+    """Format content as a .mdc file with frontmatter."""
+    return f"---\ndescription: \"{description}\"\nalwaysApply: true\n---\n\n{content}\n"
+
+
+def _write_mdc(path: Path, content: str) -> None:
+    """Write an .mdc file, always overwriting (synced content)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def _write_if_not_exists(path: Path, content: str) -> None:

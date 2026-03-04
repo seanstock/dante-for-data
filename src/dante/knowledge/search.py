@@ -26,7 +26,7 @@ def _db_path(root: Path | None = None) -> Path:
 
 async def search_async(
     query: str,
-    top_k: int = 5,
+    top_k: int = 10,
     threshold: float = 0.3,
     root: Path | None = None,
 ) -> list[dict]:
@@ -91,7 +91,7 @@ async def search_async(
 
 def search(
     query: str,
-    top_k: int = 5,
+    top_k: int = 10,
     threshold: float = 0.3,
     root: Path | None = None,
 ) -> list[dict]:

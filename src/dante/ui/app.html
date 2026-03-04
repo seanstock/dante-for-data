@@ -333,18 +333,28 @@
   <div class="tab-panel" id="panel-knowledge">
     <div class="card">
       <div class="k-tabs">
-        <button class="k-tab active" data-ktab="notes">Notes</button>
+        <button class="k-tab active" data-ktab="rules">Global Rules</button>
+        <button class="k-tab" data-ktab="notes">Project Notes</button>
         <button class="k-tab" data-ktab="keywords">Keywords</button>
         <button class="k-tab" data-ktab="embeddings">Embeddings</button>
         <button class="k-tab" data-ktab="datamanagement">Data Management</button>
       </div>
 
-      <!-- Notes -->
-      <div class="k-panel active" id="kpanel-notes">
-        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Free-form context always injected into Claude's memory — business rules, data quirks, definitions, conventions.</p>
-        <textarea id="knowledge-notes" rows="18" style="width:100%" placeholder="e.g. Revenue is always net of refunds. ARR = MRR × 12. The orders table only contains completed orders..."></textarea>
-        <div class="k-form-row" style="margin-top:10px">
-          <button class="k-btn-save" onclick="saveNotes()">Save Notes</button>
+      <!-- Global Rules -->
+      <div class="k-panel active" id="kpanel-rules">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Global rules applied to every project — brand colors, coding preferences, design conventions. Shared across all workspaces.</p>
+        <button class="k-add-btn" onclick="addNewRule()">+ Add Rule</button>
+        <div id="rules-list" class="k-list">
+          <div class="k-empty">No rules defined yet.</div>
+        </div>
+      </div>
+
+      <!-- Project Notes -->
+      <div class="k-panel" id="kpanel-notes">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Project-specific context — data quirks, schema notes, findings. Only applies to this project.</p>
+        <button class="k-add-btn" onclick="addNewNote()">+ Add Note</button>
+        <div id="notes-list" class="k-list">
+          <div class="k-empty">No project notes yet.</div>
         </div>
       </div>
 
@@ -615,7 +625,7 @@ $('#tab-nav').addEventListener('click', function(e) {
   // Lazy-load data for the tab
   var tab = e.target.dataset.tab;
   if (tab === 'status') loadStatus();
-  if (tab === 'knowledge') { loadNotes(); loadKeywords(); loadPatterns(); }
+  if (tab === 'knowledge') { loadRules(); loadNotes(); loadKeywords(); loadPatterns(); }
   if (tab === 'config') loadConfig();
   if (tab === 'connections') loadConnections();
 });
@@ -836,21 +846,182 @@ function kHideForm(name) {
 }
 
 /* ──────────────────────────────────────────────────────────
-   KNOWLEDGE — Notes
+   KNOWLEDGE — Global Rules
    ────────────────────────────────────────────────────────── */
+var rulesData = {};
+
+async function loadRules() {
+  try {
+    var data = await api('GET', '/api/rules');
+    rulesData = (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+    renderRules();
+  } catch (_) {
+    rulesData = {};
+    renderRules();
+  }
+}
+
+function renderRules() {
+  var list = $('#rules-list');
+  var entries = Object.entries(rulesData);
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="k-empty">No rules defined yet. Add brand colors, coding preferences, or conventions.</div>';
+    return;
+  }
+  var html = '';
+  entries.sort(function(a, b) { return a[0].localeCompare(b[0]); }).forEach(function(e) {
+    var name = e[0], content = e[1] || '';
+    var nameSafe = esc(name).replace(/'/g, "\\'");
+    html += '<div class="k-item">'
+      + '<div class="k-item-body">'
+      + '  <div class="k-item-title">' + esc(name) + '</div>'
+      + (content ? '<div class="k-item-text">' + esc(content) + '</div>' : '')
+      + '</div>'
+      + '<div class="k-actions">'
+      + '  <button class="k-icon-btn" title="Edit" onclick="editRule(\'' + nameSafe + '\')">&#9998;</button>'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteRule(\'' + nameSafe + '\')">&#10005;</button>'
+      + '</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function addNewRule() {
+  $('#rm-old-name').value = '';
+  $('#rm-name').value = '';
+  $('#rm-content').value = '';
+  document.querySelector('#rule-modal .modal-title').textContent = 'Add Rule';
+  $('#rule-modal').classList.add('active');
+}
+
+function editRule(name) {
+  $('#rm-old-name').value = name;
+  $('#rm-name').value = name;
+  $('#rm-content').value = rulesData[name] || '';
+  document.querySelector('#rule-modal .modal-title').textContent = 'Edit Rule';
+  $('#rule-modal').classList.add('active');
+}
+
+function closeRuleModal() {
+  $('#rule-modal').classList.remove('active');
+}
+
+async function saveRuleEdit() {
+  var oldName = $('#rm-old-name').value;
+  var newName = $('#rm-name').value.trim();
+  var content = $('#rm-content').value.trim();
+  if (!newName) { toast('Name is required.', 'error'); return; }
+  try {
+    if (oldName && oldName !== newName) {
+      await api('DELETE', '/api/rules/' + encodeURIComponent(oldName));
+    }
+    await api('POST', '/api/rules', { name: newName, content: content });
+    toast('Rule saved.', 'success');
+    closeRuleModal();
+    loadRules();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+async function deleteRule(name) {
+  if (!confirm('Delete rule "' + name + '"?')) return;
+  try {
+    await api('DELETE', '/api/rules/' + encodeURIComponent(name));
+    toast('Rule deleted.', 'success');
+    loadRules();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   KNOWLEDGE — Project Notes
+   ────────────────────────────────────────────────────────── */
+var notesData = {};
+
 async function loadNotes() {
   try {
     var data = await api('GET', '/api/notes');
-    $('#knowledge-notes').value = (data && data.content != null) ? data.content : '';
-  } catch (_) {}
+    notesData = (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+    renderNotes();
+  } catch (_) {
+    notesData = {};
+    renderNotes();
+  }
 }
 
-async function saveNotes() {
+function renderNotes() {
+  var list = $('#notes-list');
+  var entries = Object.entries(notesData);
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="k-empty">No project notes yet. Add data quirks, schema info, or findings.</div>';
+    return;
+  }
+  var html = '';
+  entries.sort(function(a, b) { return a[0].localeCompare(b[0]); }).forEach(function(e) {
+    var name = e[0], content = e[1] || '';
+    var nameSafe = esc(name).replace(/'/g, "\\'");
+    html += '<div class="k-item">'
+      + '<div class="k-item-body">'
+      + '  <div class="k-item-title">' + esc(name) + '</div>'
+      + (content ? '<div class="k-item-text">' + esc(content) + '</div>' : '')
+      + '</div>'
+      + '<div class="k-actions">'
+      + '  <button class="k-icon-btn" title="Edit" onclick="editNote(\'' + nameSafe + '\')">&#9998;</button>'
+      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteNote(\'' + nameSafe + '\')">&#10005;</button>'
+      + '</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function addNewNote() {
+  $('#nm-old-name').value = '';
+  $('#nm-name').value = '';
+  $('#nm-content').value = '';
+  document.querySelector('#note-modal .modal-title').textContent = 'Add Note';
+  $('#note-modal').classList.add('active');
+}
+
+function editNote(name) {
+  $('#nm-old-name').value = name;
+  $('#nm-name').value = name;
+  $('#nm-content').value = notesData[name] || '';
+  document.querySelector('#note-modal .modal-title').textContent = 'Edit Note';
+  $('#note-modal').classList.add('active');
+}
+
+function closeNoteModal() {
+  $('#note-modal').classList.remove('active');
+}
+
+async function saveNoteEdit() {
+  var oldName = $('#nm-old-name').value;
+  var newName = $('#nm-name').value.trim();
+  var content = $('#nm-content').value.trim();
+  if (!newName) { toast('Name is required.', 'error'); return; }
   try {
-    await api('POST', '/api/notes', { content: $('#knowledge-notes').value });
-    toast('Notes saved.', 'success');
+    if (oldName && oldName !== newName) {
+      await api('DELETE', '/api/notes/' + encodeURIComponent(oldName));
+    }
+    await api('POST', '/api/notes', { name: newName, content: content });
+    toast('Note saved.', 'success');
+    closeNoteModal();
+    loadNotes();
   } catch (e) {
     toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+async function deleteNote(name) {
+  if (!confirm('Delete note "' + name + '"?')) return;
+  try {
+    await api('DELETE', '/api/notes/' + encodeURIComponent(name));
+    toast('Note deleted.', 'success');
+    loadNotes();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
   }
 }
 
@@ -1366,7 +1537,7 @@ async function runIngest() {
    KEYBOARD SHORTCUTS
    ────────────────────────────────────────────────────────── */
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closePatternModal(); closeKeywordModal(); }
+  if (e.key === 'Escape') { closePatternModal(); closeKeywordModal(); closeRuleModal(); closeNoteModal(); }
   // Enter in keyword/glossary inline forms
   if (e.key === 'Enter' && e.target.id === 'keyword-input') addKeyword();
   if (e.key === 'Enter' && (e.target.id === 'glossary-term' || e.target.id === 'glossary-def')) addGlossaryTerm();
@@ -1379,6 +1550,52 @@ document.addEventListener('keydown', function(e) {
   loadConnections();
 })();
 </script>
+
+<!-- Rule Edit Modal -->
+<div class="modal-overlay" id="rule-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title">Add Rule</span>
+      <button class="modal-close" onclick="closeRuleModal()">&#10005;</button>
+    </div>
+    <input type="hidden" id="rm-old-name">
+    <div class="modal-field">
+      <label>Name</label>
+      <input type="text" id="rm-name" placeholder="e.g. design_system, coding_style, personality">
+    </div>
+    <div class="modal-field">
+      <label>Content</label>
+      <textarea id="rm-content" placeholder="Rule content — brand colors, preferences, conventions..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="k-btn-cancel" onclick="closeRuleModal()">Cancel</button>
+      <button class="k-btn-save" onclick="saveRuleEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note Edit Modal -->
+<div class="modal-overlay" id="note-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title">Add Note</span>
+      <button class="modal-close" onclick="closeNoteModal()">&#10005;</button>
+    </div>
+    <input type="hidden" id="nm-old-name">
+    <div class="modal-field">
+      <label>Name</label>
+      <input type="text" id="nm-name" placeholder="e.g. data_overview, schema_notes, key_findings">
+    </div>
+    <div class="modal-field">
+      <label>Content</label>
+      <textarea id="nm-content" placeholder="Project-specific notes — data quirks, schema info, findings..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="k-btn-cancel" onclick="closeNoteModal()">Cancel</button>
+      <button class="k-btn-save" onclick="saveNoteEdit()">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- Keyword Edit Modal -->
 <div class="modal-overlay" id="keyword-modal">
