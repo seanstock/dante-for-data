@@ -279,7 +279,7 @@
         </div>
         <div class="form-group">
           <label for="conn-dialect">Dialect</label>
-          <select id="conn-dialect">
+          <select id="conn-dialect" onchange="_updateConnFields()">
             <option value="">Select dialect...</option>
             <option value="postgresql">PostgreSQL</option>
             <option value="snowflake">Snowflake</option>
@@ -289,29 +289,61 @@
             <option value="sqlite">SQLite</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group conn-field" data-dialects="postgresql,mysql,snowflake,databricks">
           <label for="conn-host">Host</label>
           <input type="text" id="conn-host" placeholder="localhost">
         </div>
-        <div class="form-group">
+        <div class="form-group conn-field" data-dialects="postgresql,mysql">
           <label for="conn-port">Port</label>
           <input type="text" id="conn-port" placeholder="5432">
         </div>
-        <div class="form-group">
+        <div class="form-group conn-field" data-dialects="postgresql,mysql,snowflake,databricks,bigquery,sqlite">
           <label for="conn-database">Database</label>
           <input type="text" id="conn-database" placeholder="mydb">
         </div>
-        <div class="form-group">
+        <div class="form-group conn-field" data-dialects="postgresql,snowflake">
           <label for="conn-schema">Schema</label>
           <input type="text" id="conn-schema" placeholder="public">
         </div>
-        <div class="form-group">
+        <div class="form-group conn-field" data-dialects="postgresql,mysql,snowflake">
           <label for="conn-user">User</label>
           <input type="text" id="conn-user" placeholder="username">
         </div>
-        <div class="form-group">
-          <label for="conn-password-env">Password Env Var</label>
-          <input type="text" id="conn-password-env" placeholder="DB_PASSWORD">
+        <div class="form-group conn-field" data-dialects="postgresql,mysql,snowflake">
+          <label for="conn-password">Password</label>
+          <input type="text" id="conn-password" autocomplete="off" placeholder="password">
+        </div>
+        <div class="form-group conn-field" data-dialects="databricks">
+          <label for="conn-token">Access Token</label>
+          <input type="text" id="conn-token" autocomplete="off" placeholder="dapi...">
+        </div>
+        <div class="form-group conn-field" data-dialects="snowflake">
+          <label for="conn-warehouse">Warehouse</label>
+          <input type="text" id="conn-warehouse" placeholder="COMPUTE_WH">
+        </div>
+        <div class="form-group conn-field" data-dialects="snowflake">
+          <label for="conn-role">Role</label>
+          <input type="text" id="conn-role" placeholder="SYSADMIN">
+        </div>
+        <div class="form-group conn-field" data-dialects="snowflake">
+          <label for="conn-account">Account</label>
+          <input type="text" id="conn-account" placeholder="xy12345.us-east-1">
+        </div>
+        <div class="form-group conn-field" data-dialects="databricks">
+          <label for="conn-http-path">HTTP Path</label>
+          <input type="text" id="conn-http-path" placeholder="/sql/1.0/warehouses/abc123">
+        </div>
+        <div class="form-group conn-field" data-dialects="bigquery">
+          <label for="conn-project">Project</label>
+          <input type="text" id="conn-project" placeholder="my-gcp-project">
+        </div>
+        <div class="form-group conn-field" data-dialects="bigquery">
+          <label for="conn-credentials-path">Credentials JSON Path</label>
+          <input type="text" id="conn-credentials-path" placeholder="/path/to/service-account.json">
+        </div>
+        <div class="form-group conn-field" data-dialects="sqlite">
+          <label for="conn-filepath">File Path</label>
+          <input type="text" id="conn-filepath" placeholder="/path/to/database.db">
         </div>
       </div>
       <div class="btn-row">
@@ -775,24 +807,40 @@ $('#tab-nav').addEventListener('click', function(e) {
 /* ──────────────────────────────────────────────────────────
    CONNECTIONS
    ────────────────────────────────────────────────────────── */
+function _updateConnFields() {
+  var dialect = $('#conn-dialect').value;
+  $$('.conn-field').forEach(function(el) {
+    var dialects = (el.dataset.dialects || '').split(',');
+    el.style.display = dialect && dialects.indexOf(dialect) !== -1 ? '' : 'none';
+  });
+}
+
+var _connFieldIds = ['conn-host','conn-port','conn-database','conn-schema','conn-user','conn-password','conn-token',
+  'conn-warehouse','conn-role','conn-account','conn-http-path','conn-project','conn-credentials-path','conn-filepath'];
+
 function getConnFormData() {
-  return {
-    name:         $('#conn-name').value.trim(),
-    dialect:      $('#conn-dialect').value,
-    host:         $('#conn-host').value.trim(),
-    port:         $('#conn-port').value.trim(),
-    database:     $('#conn-database').value.trim(),
-    schema:       $('#conn-schema').value.trim(),
-    user:         $('#conn-user').value.trim(),
-    password_env: $('#conn-password-env').value.trim()
+  var d = {
+    name:    $('#conn-name').value.trim(),
+    dialect: $('#conn-dialect').value
   };
+  _connFieldIds.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.closest('.conn-field').style.display !== 'none') {
+      var key = id.replace('conn-', '').replace(/-/g, '_');
+      d[key] = el.value.trim();
+    }
+  });
+  return d;
 }
 
 function clearConnForm() {
-  ['conn-name','conn-dialect','conn-host','conn-port','conn-database','conn-schema','conn-user','conn-password-env'].forEach(function(id) {
+  $('#conn-name').value = '';
+  $('#conn-dialect').selectedIndex = 0;
+  _connFieldIds.forEach(function(id) {
     var el = document.getElementById(id);
-    if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = '';
+    if (el) el.value = '';
   });
+  _updateConnFields();
   editingConnectionName = null;
   $('#conn-form-heading').textContent = 'Add Connection';
   $('#conn-edit-badge').style.display = 'none';
@@ -806,12 +854,14 @@ function editConnection(name) {
   editingConnectionName = name;
   $('#conn-name').value = conn.name || '';
   $('#conn-dialect').value = conn.dialect || '';
-  $('#conn-host').value = conn.host || '';
-  $('#conn-port').value = conn.port || '';
-  $('#conn-database').value = conn.database || '';
-  $('#conn-schema').value = conn.schema || '';
-  $('#conn-user').value = conn.user || '';
-  $('#conn-password-env').value = conn.password_env || '';
+  _updateConnFields();
+  _connFieldIds.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      var key = id.replace('conn-', '').replace(/-/g, '_');
+      el.value = conn[key] || '';
+    }
+  });
   $('#conn-form-heading').textContent = 'Edit Connection';
   $('#conn-edit-badge').style.display = 'inline';
   $('#conn-cancel-btn').style.display = 'inline-flex';
@@ -827,8 +877,10 @@ async function saveConnection() {
   var data = getConnFormData();
   if (!data.name) { toast('Connection name is required.', 'error'); return; }
   if (!data.dialect) { toast('Dialect is required.', 'error'); return; }
+  var name = data.name;
+  delete data.name;
   try {
-    await api('POST', '/api/connections', data);
+    await api('POST', '/api/connections', { name: name, config: data });
     toast('Connection "' + data.name + '" saved.', 'success');
     clearConnForm();
     loadConnections();
@@ -839,9 +891,10 @@ async function saveConnection() {
 
 async function testConnection() {
   var data = getConnFormData();
+  delete data.name;
   if (!data.dialect) { toast('Select a dialect first.', 'error'); return; }
   try {
-    var result = await api('POST', '/api/connections/test', data);
+    var result = await api('POST', '/api/connections/test', { config: data });
     if (result && result.success) {
       toast('Connection test successful!', 'success');
     } else {
@@ -901,7 +954,17 @@ function renderConnections() {
 async function loadConnections() {
   try {
     var data = await api('GET', '/api/connections');
-    connections = Array.isArray(data) ? data : (data && data.connections ? data.connections : []);
+    if (Array.isArray(data)) {
+      connections = data;
+    } else if (data && typeof data === 'object') {
+      connections = Object.entries(data).map(function(e) {
+        var obj = e[1] || {};
+        obj.name = e[0];
+        return obj;
+      });
+    } else {
+      connections = [];
+    }
     // Load active connection
     try {
       var cfg = await api('GET', '/api/config');
@@ -1869,6 +1932,7 @@ document.addEventListener('keydown', function(e) {
   loadKeywords();
   loadPatterns();
   loadEmbeddings();
+  _updateConnFields();
 })();
 </script>
 

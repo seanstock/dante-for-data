@@ -129,6 +129,20 @@ def tables(schema: str | None = None, engine: Engine | None = None) -> list[str]
     if engine is None:
         engine = get_engine()
     insp = inspect(engine)
+
+    # Databricks requires an explicit schema; list all schemas if none given
+    if schema is None and engine.dialect.name == "databricks":
+        result = []
+        for s in insp.get_schema_names():
+            if s == "information_schema":
+                continue
+            try:
+                for t in insp.get_table_names(schema=s):
+                    result.append(f"{s}.{t}")
+            except Exception:
+                pass
+        return result
+
     return insp.get_table_names(schema=schema)
 
 
