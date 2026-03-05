@@ -1,6 +1,5 @@
 """Heuristic-based conversion of chart titles to natural-language questions.
 
-Ported from the original Dante's question_generator.py.
 Converts BI platform chart/widget titles into questions suitable for
 embedding generation, anchored with dashboard context.
 """

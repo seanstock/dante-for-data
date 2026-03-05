@@ -197,8 +197,7 @@ def stats(root: Path | None = None) -> dict:
 def rebuild(root: Path | None = None) -> dict:
     """Rebuild the embedding database from all patterns.
 
-    Placeholder implementation: re-reads all pattern files and
-    regenerates their embeddings.
+    Re-reads all pattern files and regenerates their embeddings.
 
     Returns a dict with {rebuilt: count, errors: count}.
     """

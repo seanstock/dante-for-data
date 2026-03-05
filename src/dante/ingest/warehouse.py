@@ -11,7 +11,6 @@ import logging
 
 from sqlalchemy import inspect
 
-from dante.config import project_dir
 from dante.connect import connect
 from dante.ingest import IngestionConfig, IngestionResult
 
@@ -33,10 +32,17 @@ async def ingest_warehouse(config: IngestionConfig) -> IngestionResult:
         result.errors += 1
         return result
 
+    from dante.config import knowledge_dir
+    from dante.knowledge.embeddings import init_db, upsert
+    from dante.knowledge.vectorize import generate_embedding
+
     try:
         insp = inspect(engine)
         table_names = insp.get_table_names()
         logger.info("Found %d tables for schema ingestion", len(table_names))
+
+        db_path = knowledge_dir() / "embeddings.db"
+        conn = init_db(db_path)
 
         for table_name in table_names:
             try:
@@ -50,41 +56,33 @@ async def ingest_warehouse(config: IngestionConfig) -> IngestionResult:
                 question = f"What data is in the {table_name} table?"
                 description = f"Table: {table_name}\nColumns:\n{col_text}"
 
-                det_id = _compute_id(table_name)
+                emb_id = _compute_id(table_name)
 
                 if config.dry_run:
                     logger.info("Would ingest schema for table: %s (%d columns)", table_name, len(columns))
                     result.skipped += 1
                     continue
 
-                from dante.knowledge.vectorize import generate_embedding
-                from dante.knowledge.embeddings import upsert, init_db
-
-                db_path = project_dir() / "embeddings.db"
-                init_db(db_path)
-
                 embed_text = f"Question: {question}\nSchema: {description}"
-                embedding = await generate_embedding(embed_text)
+                vector = await generate_embedding(embed_text)
 
-                was_update = upsert(
-                    db_path=db_path,
-                    id=det_id,
+                upsert(
+                    conn=conn,
+                    id=emb_id,
                     question=question,
                     sql="",
                     source="warehouse",
                     dashboard="",
                     description=description,
-                    embedding=embedding,
+                    embedding_vector=vector,
                 )
-
-                if was_update:
-                    result.updated += 1
-                else:
-                    result.created += 1
+                result.created += 1
 
             except Exception as e:
                 logger.warning("Error processing table %s: %s", table_name, e)
                 result.errors += 1
+
+        conn.close()
 
     except Exception as e:
         logger.error("Warehouse schema ingestion failed: %s", e)

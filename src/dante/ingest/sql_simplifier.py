@@ -1,7 +1,6 @@
 """LLM-based SQL simplification for embedding quality.
 
-Ported from the original Dante's sql_simplifier.py.
-Strips BI platform noise (Looker pivots, unnecessary nesting, etc.)
+Strips BI platform noise (pivot scaffolding, unnecessary nesting, etc.)
 while preserving business logic.
 """
 
