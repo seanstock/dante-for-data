@@ -11,7 +11,7 @@
     --bg:#111111;--card:#1a1a1a;--accent:#e03535;--text:#e8e8e8;
     --highlight:#e03535;--danger:#f87171;--success:#4ade80;--warn:#fbbf24;
     --input-bg:#1e1e1e;--input-border:#333333;--radius:8px;
-    --border:#2a2a2a;--text-secondary:#888888;--text-muted:#555555;
+    --border:#2a2a2a;--text-secondary:#b8b8b8;--text-muted:#555555;
     --bg-tertiary:#242424;--accent-dark:#8f0b0b;
     --card-shadow:0 2px 16px rgba(0,0,0,.4);
     --mono:'SFMono-Regular','Cascadia Code','Consolas','Liberation Mono','Menlo',monospace;
@@ -146,7 +146,7 @@
   .k-panel{display:none}.k-panel.active{display:block}
 
   /* ── Knowledge item list ── */
-  .k-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+  .k-list{display:flex;flex-direction:column;gap:5px;margin-top:12px}
   .k-item{
     display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
     padding:10px 14px;background:var(--bg-tertiary);border:1px solid var(--border);
@@ -156,6 +156,7 @@
   .k-item-body{flex:1;min-width:0}
   .k-item-title{font-size:13px;font-weight:600;color:var(--text);font-family:var(--mono);margin-bottom:2px}
   .k-item-text{font-size:12px;color:var(--text-secondary);line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .k-item-text.k-md{white-space:normal}
   .k-item-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
   .k-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
   .k-icon-btn{
@@ -366,17 +367,16 @@
         </div>
       </div>
 
-      <!-- Embeddings (formerly Patterns) -->
+      <!-- Embeddings -->
       <div class="k-panel" id="kpanel-embeddings">
-        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Saved SQL queries stored as vector embeddings. Claude surfaces these when answering similar questions. Built automatically from Looker/Databricks ingestion or saved manually via <code>dante_save_pattern</code>.</p>
-        <button class="k-add-btn" onclick="addNewPattern()">+ Add Embedding</button>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">SQL queries stored as vector embeddings. Built automatically from dashboard ingestion or saved manually via <code>dante_save_pattern</code>.</p>
         <div class="k-search" style="margin-top:12px">
-          <input type="text" id="pattern-search" placeholder="Search embeddings...">
-          <button onclick="filterPatterns()">Search</button>
-          <button onclick="clearPatternSearch()">Clear</button>
+          <input type="text" id="embedding-search" placeholder="Search embeddings...">
+          <button onclick="filterEmbeddings()">Search</button>
+          <button onclick="clearEmbeddingSearch()">Clear</button>
         </div>
-        <div id="patterns-list" class="k-list">
-          <div class="k-empty">No embeddings saved yet.</div>
+        <div id="embeddings-list" class="k-list">
+          <div class="k-empty">No embeddings yet. Run ingestion from the Data Management tab.</div>
         </div>
       </div>
 
@@ -397,9 +397,17 @@
           <label>Sources</label>
           <select id="ingest-source">
             <option value="all">All Sources</option>
-            <option value="looker">Looker</option>
-            <option value="databricks">Databricks</option>
-            <option value="warehouse">Warehouse</option>
+            <optgroup label="Core">
+              <option value="looker">Looker</option>
+              <option value="databricks">Databricks</option>
+              <option value="warehouse">Warehouse</option>
+            </optgroup>
+            <optgroup label="Experimental">
+              <option value="mode">Mode Analytics</option>
+              <option value="redash">Redash</option>
+              <option value="sigma">Sigma Computing</option>
+              <option value="superset">Apache Superset</option>
+            </optgroup>
           </select>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
@@ -476,17 +484,17 @@
         </div>
         <div id="credentials-section" style="display:none;margin-top:14px">
           <div style="margin-bottom:16px">
-            <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">OpenAI</h3>
+            <h3 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">OpenAI</h3>
             <div class="form-group">
               <label for="cred-openai-key">API Key</label>
               <div style="display:flex;gap:8px">
-                <input type="password" id="cred-openai-key" placeholder="sk-..." style="flex:1">
+                <input type="text" id="cred-openai-key" placeholder="sk-..." style="flex:1" autocomplete="off">
                 <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-openai-key')">Show</button>
               </div>
             </div>
           </div>
           <div style="margin-bottom:16px">
-            <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Looker <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— BI platform dashboard ingestion</span></h3>
+            <h3 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Looker <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— BI platform dashboard ingestion</span></h3>
             <div class="form-grid cols-3">
               <div class="form-group full">
                 <label for="cred-looker-url">Base URL</label>
@@ -499,14 +507,14 @@
               <div class="form-group">
                 <label for="cred-looker-secret">Client Secret</label>
                 <div style="display:flex;gap:8px">
-                  <input type="password" id="cred-looker-secret" placeholder="client_secret" style="flex:1">
+                  <input type="text" id="cred-looker-secret" placeholder="client_secret" style="flex:1" autocomplete="off">
                   <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-looker-secret')">Show</button>
                 </div>
               </div>
             </div>
           </div>
           <div style="margin-bottom:16px">
-            <h3 style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Databricks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— dashboard ingestion only</span></h3>
+            <h3 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Databricks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— dashboard ingestion only</span></h3>
             <div class="form-grid">
               <div class="form-group full">
                 <label for="cred-dbx-url">Workspace URL</label>
@@ -515,8 +523,84 @@
               <div class="form-group">
                 <label for="cred-dbx-token">Personal Access Token</label>
                 <div style="display:flex;gap:8px">
-                  <input type="password" id="cred-dbx-token" placeholder="dapi..." style="flex:1">
+                  <input type="text" id="cred-dbx-token" placeholder="dapi..." style="flex:1" autocomplete="off">
                   <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-dbx-token')">Show</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <h3 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Mode Analytics <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— experimental</span></h3>
+            <div class="form-grid cols-3">
+              <div class="form-group">
+                <label for="cred-mode-workspace">Workspace</label>
+                <input type="text" id="cred-mode-workspace" placeholder="my-org">
+              </div>
+              <div class="form-group">
+                <label for="cred-mode-token">API Token</label>
+                <input type="text" id="cred-mode-token" placeholder="token">
+              </div>
+              <div class="form-group">
+                <label for="cred-mode-secret">API Secret</label>
+                <div style="display:flex;gap:8px">
+                  <input type="text" id="cred-mode-secret" placeholder="secret" style="flex:1" autocomplete="off">
+                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-mode-secret')">Show</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <h3 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Redash <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— experimental</span></h3>
+            <div class="form-grid">
+              <div class="form-group full">
+                <label for="cred-redash-url">URL</label>
+                <input type="text" id="cred-redash-url" placeholder="https://redash.mycompany.com">
+              </div>
+              <div class="form-group">
+                <label for="cred-redash-key">API Key</label>
+                <div style="display:flex;gap:8px">
+                  <input type="text" id="cred-redash-key" placeholder="api_key" style="flex:1" autocomplete="off">
+                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-redash-key')">Show</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <h3 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Sigma Computing <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— experimental</span></h3>
+            <div class="form-grid cols-3">
+              <div class="form-group full">
+                <label for="cred-sigma-host">API Host</label>
+                <input type="text" id="cred-sigma-host" placeholder="https://aws-api.sigmacomputing.com">
+              </div>
+              <div class="form-group">
+                <label for="cred-sigma-id">Client ID</label>
+                <input type="text" id="cred-sigma-id" placeholder="client_id">
+              </div>
+              <div class="form-group">
+                <label for="cred-sigma-secret">Client Secret</label>
+                <div style="display:flex;gap:8px">
+                  <input type="text" id="cred-sigma-secret" placeholder="client_secret" style="flex:1" autocomplete="off">
+                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-sigma-secret')">Show</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <h3 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Apache Superset <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">— experimental</span></h3>
+            <div class="form-grid cols-3">
+              <div class="form-group full">
+                <label for="cred-superset-url">URL</label>
+                <input type="text" id="cred-superset-url" placeholder="https://superset.mycompany.com">
+              </div>
+              <div class="form-group">
+                <label for="cred-superset-user">Username</label>
+                <input type="text" id="cred-superset-user" placeholder="admin">
+              </div>
+              <div class="form-group">
+                <label for="cred-superset-pass">Password</label>
+                <div style="display:flex;gap:8px">
+                  <input type="text" id="cred-superset-pass" placeholder="password" style="flex:1" autocomplete="off">
+                  <button class="btn btn-sm btn-secondary" onclick="toggleMask('cred-superset-pass')">Show</button>
                 </div>
               </div>
             </div>
@@ -579,6 +663,76 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function _fmtTs(iso) {
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    var mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    var day = d.getDate();
+    var hr = d.getHours();
+    var min = String(d.getMinutes()).padStart(2, '0');
+    var ampm = hr >= 12 ? 'pm' : 'am';
+    hr = hr % 12 || 12;
+    return mon + ' ' + day + ', ' + d.getFullYear() + ' ' + hr + ':' + min + ampm;
+  } catch(_) { return esc(iso); }
+}
+
+function _collapseBlanks(sql) {
+  if (!sql) return '';
+  return sql.replace(/\n{2,}/g, '\n');
+}
+
+function _md(text) {
+  if (!text) return '';
+  var s = esc(text);
+  // code blocks (``` ... ```)
+  s = s.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:var(--input-bg);padding:8px;border-radius:4px;overflow-x:auto;font-size:12px;margin:4px 0"><code>$2</code></pre>');
+  // tables — find consecutive lines starting with |
+  s = s.replace(/(^(\|.+)\n)+/gm, function(block) {
+    var rows = block.trim().split('\n');
+    var tbl = '<table style="border-collapse:collapse;font-size:12px;margin:4px 0;width:100%">';
+    rows.forEach(function(row, i) {
+      // skip separator row (|---|---|)
+      if (/^\|[\s\-:]+\|$/.test(row.trim())) return;
+      var cells = row.split('|').filter(function(c, j, a) { return j > 0 && j < a.length - 1; });
+      var tag = i === 0 ? 'th' : 'td';
+      var style = i === 0
+        ? 'padding:4px 8px;border-bottom:1px solid var(--border);text-align:left;font-weight:600;color:var(--text)'
+        : 'padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text-secondary)';
+      tbl += '<tr>';
+      cells.forEach(function(c) { tbl += '<' + tag + ' style="' + style + '">' + c.trim() + '</' + tag + '>'; });
+      tbl += '</tr>';
+    });
+    tbl += '</table>';
+    return tbl;
+  });
+  // inline code
+  s = s.replace(/`([^`]+)`/g, '<code style="background:var(--input-bg);padding:1px 4px;border-radius:3px;font-size:12px">$1</code>');
+  // headers
+  s = s.replace(/^### (.+)$/gm, '<strong style="font-size:13px">$1</strong>');
+  s = s.replace(/^## (.+)$/gm, '<strong style="font-size:14px">$1</strong>');
+  s = s.replace(/^# (.+)$/gm, '<strong style="font-size:15px">$1</strong>');
+  // bold + italic
+  s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // links
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:var(--highlight)" target="_blank">$1</a>');
+  // unordered lists
+  s = s.replace(/^[-*] (.+)$/gm, '<span style="display:block;padding-left:12px">&bull; $1</span>');
+  // numbered lists
+  s = s.replace(/^\d+\. (.+)$/gm, function(m, p1) {
+    return '<span style="display:block;padding-left:12px">&bull; ' + p1 + '</span>';
+  });
+  // line breaks (but not inside pre/table blocks)
+  s = s.replace(/\n/g, '<br>');
+  // clean up excessive <br> after block elements
+  s = s.replace(/(<\/pre>)<br>/g, '$1');
+  s = s.replace(/(<\/span>)<br>/g, '$1');
+  s = s.replace(/(<\/table>)<br>/g, '$1');
+  return s;
+}
+
 /* ── Toast ── */
 function toast(message, type) {
   type = type || 'info';
@@ -612,7 +766,7 @@ $('#tab-nav').addEventListener('click', function(e) {
   // Lazy-load data for the tab
   var tab = e.target.dataset.tab;
   if (tab === 'status') loadStatus();
-  if (tab === 'knowledge') { loadRules(); loadNotes(); loadKeywords(); loadPatterns(); }
+  if (tab === 'knowledge') { loadRules(); loadNotes(); loadKeywords(); loadPatterns(); loadEmbeddings(); }
   if (tab === 'datamanagement') { loadSources(); loadJobs(); }
   if (tab === 'connections') loadConnections();
 });
@@ -776,21 +930,50 @@ async function setActiveConnection(name) {
 /* ──────────────────────────────────────────────────────────
    SOURCES (embedding ingestion credentials)
    ────────────────────────────────────────────────────────── */
+function _loadCred(el, val) {
+  // val is either a string (non-sensitive) or {has_value: bool} (sensitive)
+  if (val && typeof val === 'object' && 'has_value' in val) {
+    el.value = '';
+    el.placeholder = val.has_value ? 'Configured (leave blank to keep)' : el.dataset.hint || 'Not set';
+  } else {
+    el.value = val || '';
+  }
+}
+
 async function loadSources() {
   try {
     var data = await api('GET', '/api/credentials');
     if (data) {
       if (data.openai) {
-        $('#cred-openai-key').value = data.openai.api_key || '';
+        _loadCred($('#cred-openai-key'), data.openai.api_key);
       }
       if (data.looker) {
-        $('#cred-looker-url').value = data.looker.base_url || '';
-        $('#cred-looker-id').value = data.looker.client_id || '';
-        $('#cred-looker-secret').value = data.looker.client_secret || '';
+        _loadCred($('#cred-looker-url'), data.looker.base_url);
+        _loadCred($('#cred-looker-id'), data.looker.client_id);
+        _loadCred($('#cred-looker-secret'), data.looker.client_secret);
       }
       if (data.databricks) {
-        $('#cred-dbx-url').value = data.databricks.workspace_url || '';
-        $('#cred-dbx-token').value = data.databricks.token || '';
+        _loadCred($('#cred-dbx-url'), data.databricks.workspace_url);
+        _loadCred($('#cred-dbx-token'), data.databricks.token);
+      }
+      if (data.mode) {
+        _loadCred($('#cred-mode-workspace'), data.mode.workspace);
+        _loadCred($('#cred-mode-token'), data.mode.token);
+        _loadCred($('#cred-mode-secret'), data.mode.secret);
+      }
+      if (data.redash) {
+        _loadCred($('#cred-redash-url'), data.redash.url);
+        _loadCred($('#cred-redash-key'), data.redash.api_key);
+      }
+      if (data.sigma) {
+        _loadCred($('#cred-sigma-host'), data.sigma.host);
+        _loadCred($('#cred-sigma-id'), data.sigma.client_id);
+        _loadCred($('#cred-sigma-secret'), data.sigma.client_secret);
+      }
+      if (data.superset) {
+        _loadCred($('#cred-superset-url'), data.superset.url);
+        _loadCred($('#cred-superset-user'), data.superset.username);
+        _loadCred($('#cred-superset-pass'), data.superset.password);
       }
     }
   } catch (_) {}
@@ -809,6 +992,25 @@ async function saveSources() {
     databricks: {
       workspace_url: $('#cred-dbx-url').value.trim(),
       token:         $('#cred-dbx-token').value.trim()
+    },
+    mode: {
+      workspace: $('#cred-mode-workspace').value.trim(),
+      token:     $('#cred-mode-token').value.trim(),
+      secret:    $('#cred-mode-secret').value.trim()
+    },
+    redash: {
+      url:     $('#cred-redash-url').value.trim(),
+      api_key: $('#cred-redash-key').value.trim()
+    },
+    sigma: {
+      host:          $('#cred-sigma-host').value.trim(),
+      client_id:     $('#cred-sigma-id').value.trim(),
+      client_secret: $('#cred-sigma-secret').value.trim()
+    },
+    superset: {
+      url:      $('#cred-superset-url').value.trim(),
+      username: $('#cred-superset-user').value.trim(),
+      password: $('#cred-superset-pass').value.trim()
     }
   };
   try {
@@ -873,7 +1075,7 @@ function renderRules() {
     html += '<div class="k-item">'
       + '<div class="k-item-body">'
       + '  <div class="k-item-title">' + esc(name) + '</div>'
-      + (content ? '<div class="k-item-text">' + esc(content) + '</div>' : '')
+      + (content ? '<div class="k-item-text k-md">' + _md(content) + '</div>' : '')
       + '</div>'
       + '<div class="k-actions">'
       + '  <button class="k-icon-btn" title="Edit" onclick="editRule(\'' + nameSafe + '\')">&#9998;</button>'
@@ -963,7 +1165,7 @@ function renderNotes() {
     html += '<div class="k-item">'
       + '<div class="k-item-body">'
       + '  <div class="k-item-title">' + esc(name) + '</div>'
-      + (content ? '<div class="k-item-text">' + esc(content) + '</div>' : '')
+      + (content ? '<div class="k-item-text k-md">' + _md(content) + '</div>' : '')
       + '</div>'
       + '<div class="k-actions">'
       + '  <button class="k-icon-btn" title="Edit" onclick="editNote(\'' + nameSafe + '\')">&#9998;</button>'
@@ -1231,6 +1433,7 @@ function clearPatternSearch() {
 
 function renderPatterns(patterns) {
   var list = $('#patterns-list');
+  if (!list) return;
   if (!patterns || patterns.length === 0) {
     list.innerHTML = '<div class="k-empty">No patterns saved yet. Use <code>dante_save_pattern</code> in Claude to save SQL patterns.</div>';
     return;
@@ -1318,6 +1521,119 @@ async function savePatternEdit() {
 }
 
 /* ──────────────────────────────────────────────────────────
+   KNOWLEDGE — Embeddings (from SQLite database)
+   ────────────────────────────────────────────────────────── */
+var allEmbeddings = [];
+
+async function loadEmbeddings() {
+  try {
+    var data = await api('GET', '/api/embeddings');
+    allEmbeddings = Array.isArray(data) ? data : [];
+    renderEmbeddings(allEmbeddings);
+  } catch (_) {
+    allEmbeddings = [];
+    renderEmbeddings([]);
+  }
+}
+
+function filterEmbeddings() {
+  var q = ($('#embedding-search').value || '').toLowerCase();
+  var filtered = q ? allEmbeddings.filter(function(e) {
+    return (e.question || '').toLowerCase().indexOf(q) !== -1
+      || (e.source || '').toLowerCase().indexOf(q) !== -1
+      || (e.dashboard || '').toLowerCase().indexOf(q) !== -1
+      || (e.description || '').toLowerCase().indexOf(q) !== -1;
+  }) : allEmbeddings;
+  renderEmbeddings(filtered);
+}
+
+function clearEmbeddingSearch() {
+  $('#embedding-search').value = '';
+  renderEmbeddings(allEmbeddings);
+}
+
+function renderEmbeddings(embeddings) {
+  var list = $('#embeddings-list');
+  if (!embeddings || embeddings.length === 0) {
+    list.innerHTML = '<div class="k-empty">No embeddings yet. Run ingestion from the Data Management tab.</div>';
+    return;
+  }
+  var html = '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">' + embeddings.length + ' embeddings</div>';
+  embeddings.forEach(function(e) {
+    var source = e.source || 'unknown';
+    var badge = '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--card-bg);border:1px solid var(--border)">' + esc(source) + '</span>';
+    var idSafe = esc(e.id).replace(/'/g, "\\'");
+    var ts = _fmtTs(e.updated_at);
+    var infoLines = '';
+    if (e.question) infoLines += '<div style="font-size:12px;color:var(--text-secondary)"><span style="color:var(--text-muted)">Q:</span> ' + esc(e.question) + '</div>';
+    if (e.dashboard) infoLines += '<div style="font-size:12px;color:var(--text-secondary)"><span style="color:var(--text-muted)">Dash:</span> ' + esc(e.dashboard) + '</div>';
+    if (e.description) infoLines += '<div style="font-size:12px;color:var(--text-secondary)"><span style="color:var(--text-muted)">Chart:</span> ' + esc(e.description) + '</div>';
+    html += '<div class="k-item" style="align-items:stretch">'
+      + '<div class="k-item-body">'
+      + infoLines
+      + '<div class="k-item-meta">' + ts + '</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:4px;flex-shrink:0">'
+      + '  <div>' + badge + '</div>'
+      + '  <div style="display:flex;gap:2px">'
+      + '    <button class="k-icon-btn" title="Edit" onclick="editEmbedding(\'' + idSafe + '\')">&#9998;</button>'
+      + '    <button class="k-icon-btn danger" title="Delete" onclick="deleteEmbedding(\'' + idSafe + '\')">&#10005;</button>'
+      + '  </div>'
+      + '</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function deleteEmbedding(id) {
+  if (!confirm('Delete embedding "' + id + '"?')) return;
+  try {
+    await api('DELETE', '/api/embeddings/' + encodeURIComponent(id));
+    toast('Embedding deleted.', 'success');
+    loadEmbeddings();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function editEmbedding(id) {
+  var e = allEmbeddings.find(function(x) { return x.id === id; });
+  if (!e) { toast('Embedding not found.', 'error'); return; }
+  $('#em-id').value = id;
+  $('#em-question').value = e.question || '';
+  $('#em-description').value = e.description || '';
+  $('#em-sql').value = _collapseBlanks(e.sql || '');
+  $('#em-source').value = e.source || '';
+  $('#em-dashboard').value = e.dashboard || '';
+  $('#embedding-modal').classList.add('active');
+}
+
+function closeEmbeddingModal() {
+  $('#embedding-modal').classList.remove('active');
+}
+
+async function saveEmbeddingEdit() {
+  var id = $('#em-id').value;
+  var question = $('#em-question').value.trim();
+  if (!question) { toast('Question is required.', 'error'); return; }
+  var payload = {
+    question: question,
+    description: $('#em-description').value.trim(),
+    sql: _collapseBlanks($('#em-sql').value),
+    source: $('#em-source').value.trim(),
+    dashboard: $('#em-dashboard').value.trim()
+  };
+  try {
+    await api('POST', '/api/embeddings/' + encodeURIComponent(id), payload);
+    toast('Embedding updated.', 'success');
+    closeEmbeddingModal();
+    loadEmbeddings();
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
    STATUS
    ────────────────────────────────────────────────────────── */
 async function loadStatus() {
@@ -1350,6 +1666,10 @@ function renderStatus(data) {
   // Credential status
   var lookerOk = data.looker_configured || (data.credentials && data.credentials.looker);
   var dbxOk = data.databricks_configured || (data.credentials && data.credentials.databricks);
+  var modeOk = data.mode_configured || false;
+  var redashOk = data.redash_configured || false;
+  var sigmaOk = data.sigma_configured || false;
+  var supersetOk = data.superset_configured || false;
 
   html += '<div class="stat-grid">';
   html += '<div class="stat-box"><div class="stat-value">' + esc(connCount) + '</div><div class="stat-label">Connections</div></div>';
@@ -1379,6 +1699,30 @@ function renderStatus(data) {
     + '<span class="status-dot ' + (dbxOk ? 'green' : 'red') + '"></span>'
     + 'Databricks</span>'
     + '<span class="item-meta">' + (dbxOk ? 'Configured' : 'Not configured') + '</span></div>';
+
+  // Mode
+  html += '<div class="item-row"><span class="item-label">'
+    + '<span class="status-dot ' + (modeOk ? 'green' : 'red') + '"></span>'
+    + 'Mode Analytics</span>'
+    + '<span class="item-meta">' + (modeOk ? 'Configured' : 'Not configured') + '</span></div>';
+
+  // Redash
+  html += '<div class="item-row"><span class="item-label">'
+    + '<span class="status-dot ' + (redashOk ? 'green' : 'red') + '"></span>'
+    + 'Redash</span>'
+    + '<span class="item-meta">' + (redashOk ? 'Configured' : 'Not configured') + '</span></div>';
+
+  // Sigma
+  html += '<div class="item-row"><span class="item-label">'
+    + '<span class="status-dot ' + (sigmaOk ? 'green' : 'red') + '"></span>'
+    + 'Sigma Computing</span>'
+    + '<span class="item-meta">' + (sigmaOk ? 'Configured' : 'Not configured') + '</span></div>';
+
+  // Superset
+  html += '<div class="item-row"><span class="item-label">'
+    + '<span class="status-dot ' + (supersetOk ? 'green' : 'red') + '"></span>'
+    + 'Apache Superset</span>'
+    + '<span class="item-meta">' + (supersetOk ? 'Configured' : 'Not configured') + '</span></div>';
 
   html += '</div>';
 
@@ -1524,6 +1868,7 @@ document.addEventListener('keydown', function(e) {
   loadNotes();
   loadKeywords();
   loadPatterns();
+  loadEmbeddings();
 })();
 </script>
 
@@ -1623,6 +1968,40 @@ document.addEventListener('keydown', function(e) {
     <div class="modal-actions">
       <button class="k-btn-cancel" onclick="closePatternModal()">Cancel</button>
       <button class="k-btn-save" onclick="savePatternEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="embedding-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title">Edit Embedding</span>
+      <button class="modal-close" onclick="closeEmbeddingModal()">&#10005;</button>
+    </div>
+    <input type="hidden" id="em-id">
+    <div class="modal-field">
+      <label>Question</label>
+      <input type="text" id="em-question" placeholder="What business question does this SQL answer?">
+    </div>
+    <div class="modal-field">
+      <label>Description</label>
+      <input type="text" id="em-description" placeholder="Brief description">
+    </div>
+    <div class="modal-field">
+      <label>Source</label>
+      <input type="text" id="em-source" placeholder="databricks, manual, etc.">
+    </div>
+    <div class="modal-field">
+      <label>Dashboard</label>
+      <input type="text" id="em-dashboard" placeholder="Dashboard name">
+    </div>
+    <div class="modal-field">
+      <label>SQL</label>
+      <textarea id="em-sql" placeholder="SELECT ..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="k-btn-cancel" onclick="closeEmbeddingModal()">Cancel</button>
+      <button class="k-btn-save" onclick="saveEmbeddingEdit()">Save</button>
     </div>
   </div>
 </div>

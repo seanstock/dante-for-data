@@ -85,7 +85,7 @@ def serve():
 
 
 @main.command()
-@click.option("--source", type=click.Choice(["looker", "databricks", "warehouse", "all"]), default="all")
+@click.option("--source", type=click.Choice(["looker", "databricks", "warehouse", "mode", "redash", "sigma", "superset", "all"]), default="all")
 @click.option("--min-views", default=10, help="Looker: minimum dashboard views")
 @click.option("--lookback-days", default=90, help="Looker: only dashboards accessed within N days")
 @click.option("--dry-run", is_flag=True, help="Show what would be ingested without doing it")

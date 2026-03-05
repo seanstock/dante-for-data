@@ -1,7 +1,11 @@
-"""Databricks Lakeview dashboard ingestion via the Databricks CLI.
+"""Databricks Lakeview dashboard ingestion.
 
-Lists Lakeview dashboards, parses serialized dashboard JSON to extract
-dataset queries and widget titles, then generates embeddings.
+Connects to the Databricks workspace REST API to list dashboards,
+fetch their serialized definitions, and extract SQL from datasets
+and widget configurations.
+
+Requires workspace_url and token in ~/.dante/credentials.yaml
+under the `databricks` key.
 """
 
 from __future__ import annotations
@@ -9,8 +13,10 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import subprocess
+import re
 import time
+
+import requests
 
 from dante.ingest import IngestionConfig, IngestionResult
 
@@ -18,83 +24,70 @@ logger = logging.getLogger(__name__)
 
 
 def _make_embedding_id(dashboard_id: str, element_id: str) -> str:
-    """Deterministic embedding ID for a Databricks chart."""
     raw = f"databricks:{dashboard_id}:{element_id}"
     return f"dbr-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
 
 
-def _run_cli(*args: str, timeout: int = 60) -> dict | list | None:
-    """Run a databricks CLI command and parse JSON output."""
-    cmd = ["databricks", *args, "--output", "json"]
+def _get_credentials() -> dict | None:
+    from dante.config import load_global_credentials
+
+    creds = load_global_credentials().get("databricks", {})
+    if not creds.get("workspace_url") or not creds.get("token"):
+        return None
+    return creds
+
+
+def _api_get(session: requests.Session, base_url: str, path: str,
+             params: dict | None = None) -> dict | None:
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    except FileNotFoundError:
-        logger.error(
-            "'databricks' CLI not found. "
-            "Install with: pip install databricks-cli"
+        resp = session.get(
+            f"{base_url}/api/2.0{path}",
+            params=params,
+            timeout=30,
         )
-        return None
-    except subprocess.TimeoutExpired:
-        logger.warning("CLI command timed out: %s", " ".join(cmd))
-        return None
-
-    if proc.returncode != 0:
-        logger.warning("CLI error: %s", proc.stderr.strip())
-        return None
-
-    try:
-        return json.loads(proc.stdout) if proc.stdout else None
-    except json.JSONDecodeError:
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        logger.warning("Databricks API request failed: %s", path, exc_info=True)
         return None
 
 
-def _extract_charts_from_dashboard(dash_id: str, dash_name: str) -> list[dict]:
-    """Fetch a single dashboard and extract widget titles + SQL from it."""
-    data = _run_cli("lakeview", "get", dash_id, timeout=30)
-    if not data or not isinstance(data, dict):
-        return []
-
-    serialized = data.get("serialized_dashboard")
-    if not serialized:
-        return []
-
+def _parse_dashboard_charts(dash_id: str, dash_name: str,
+                            serialized: str) -> list[dict]:
+    """Parse a serialized dashboard definition into chart records."""
     try:
         definition = json.loads(serialized)
     except (json.JSONDecodeError, TypeError):
         return []
 
-    # Build a lookup of dataset name -> SQL query
+    # Build dataset name -> SQL lookup
     dataset_sql: dict[str, str] = {}
     for ds in definition.get("datasets", []):
         name = ds.get("name") or ds.get("displayName", "")
         lines = ds.get("queryLines", [])
-        sql = "\n".join(lines) if lines else ds.get("query", "")
+        sql = "\n".join(l.rstrip() for l in lines) if lines else ds.get("query", "")
         if name and sql and len(sql) > 20:
             dataset_sql[name] = sql
 
     if not dataset_sql:
         return []
 
-    # Walk pages -> layout items -> widgets
     charts: list[dict] = []
     for page in definition.get("pages", []):
         for item in page.get("layout", []):
             widget = item.get("widget", {})
             spec = widget.get("spec", {})
 
-            # Skip filter widgets
-            widget_type = spec.get("widgetType", "")
-            if widget_type.startswith("filter"):
+            if spec.get("widgetType", "").startswith("filter"):
                 continue
 
-            # Title lives in spec.frame.title
             title = spec.get("frame", {}).get("title", "") or widget.get(
                 "displayName", ""
             )
             if not title or title.lower() == "untitled":
                 continue
 
-            # Resolve which dataset this widget references
+            # Resolve dataset reference
             ds_name = ""
             for wq in widget.get("queries", []):
                 ref = wq.get("query", {}).get("datasetName")
@@ -118,44 +111,62 @@ def _extract_charts_from_dashboard(dash_id: str, dash_name: str) -> list[dict]:
     return charts
 
 
-def _fetch_all_charts(limit: int) -> list[dict]:
-    """List Lakeview dashboards and extract charts from each."""
-    listing = _run_cli("lakeview", "list")
-    if not listing or not isinstance(listing, list):
+def _fetch_charts(session: requests.Session, base_url: str,
+                  limit: int) -> list[dict]:
+    """List dashboards and extract SQL from each."""
+    data = _api_get(session, base_url, "/lakeview/dashboards",
+                    params={"page_size": 200})
+    if not data:
         return []
 
-    total = len(listing)
+    dashboards = data.get("dashboards", [])
     if limit > 0:
-        listing = listing[:limit]
+        dashboards = dashboards[:limit]
 
-    logger.info(
-        "Found %d Lakeview dashboards, processing %d", total, len(listing)
-    )
+    logger.info("Scanning %d Databricks dashboards", len(dashboards))
+    charts: list[dict] = []
 
-    all_charts: list[dict] = []
-    for idx, dash in enumerate(listing):
-        did = dash.get("dashboard_id", "")
-        name = dash.get("display_name", f"Dashboard {did[:8]}" if did else "Unknown")
-        if not did:
+    for idx, dash in enumerate(dashboards):
+        dash_id = dash.get("dashboard_id", "")
+        dash_name = dash.get("display_name", f"Dashboard {dash_id[:8]}")
+        if not dash_id:
             continue
 
-        all_charts.extend(_extract_charts_from_dashboard(did, name))
+        detail = _api_get(session, base_url,
+                          f"/lakeview/dashboards/{dash_id}")
+        if not detail:
+            continue
+
+        serialized = detail.get("serialized_dashboard", "")
+        if serialized:
+            charts.extend(_parse_dashboard_charts(dash_id, dash_name, serialized))
 
         if (idx + 1) % 10 == 0:
-            logger.info(
-                "  Processed %d/%d dashboards (%d charts)",
-                idx + 1, len(listing), len(all_charts),
-            )
+            logger.info("  Processed %d/%d dashboards (%d charts)",
+                        idx + 1, len(dashboards), len(charts))
 
-    logger.info("Collected %d charts with SQL from Databricks", len(all_charts))
-    return all_charts
+    logger.info("Collected %d charts with SQL from Databricks", len(charts))
+    return charts
 
 
 async def ingest_databricks(config: IngestionConfig) -> IngestionResult:
-    """Run the full Databricks Lakeview ingestion pipeline."""
+    """Run the Databricks Lakeview ingestion pipeline."""
     result = IngestionResult()
 
-    charts = _fetch_all_charts(config.dashboard_limit)
+    creds = _get_credentials()
+    if not creds:
+        logger.error(
+            "Databricks credentials not configured. Add 'databricks' section "
+            "with workspace_url and token to ~/.dante/credentials.yaml"
+        )
+        result.errors += 1
+        return result
+
+    base_url = creds["workspace_url"].rstrip("/")
+    session = requests.Session()
+    session.headers["Authorization"] = f"Bearer {creds['token']}"
+
+    charts = _fetch_charts(session, base_url, config.dashboard_limit)
     if not charts:
         logger.info("No Databricks charts found")
         return result
@@ -182,6 +193,7 @@ async def ingest_databricks(config: IngestionConfig) -> IngestionResult:
         try:
             question = generate_question(title, chart["dashboard_title"])
             simplified = await simplify_sql(chart["sql"], title)
+            simplified = re.sub(r'\n{2,}', '\n', simplified)
             embed_text = f"Question: {question}\nSQL Pattern:\n{simplified[:2000]}"
             vector = await generate_embedding(embed_text)
 

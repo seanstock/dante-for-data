@@ -23,40 +23,35 @@ def _make_embedding_id(dashboard_id: str, element_id: str) -> str:
 
 
 def _init_sdk():
-    """Initialize the Looker SDK using stored Dante credentials.
-
-    Pushes credentials from ~/.dante/credentials.yaml into the
-    LOOKERSDK_* environment variables that the SDK expects, then
-    calls init40().
-    """
+    """Initialize the Looker SDK using stored Dante credentials."""
     try:
         import looker_sdk
+        from looker_sdk.sdk.api40 import methods as methods40
     except ImportError:
         logger.error("looker-sdk not installed. Run: pip install dante-ds[looker]")
         return None
 
-    import os
     from dante.config import load_global_credentials
 
     creds = load_global_credentials().get("looker", {})
-    env_map = {
-        "base_url": "LOOKERSDK_BASE_URL",
-        "client_id": "LOOKERSDK_CLIENT_ID",
-        "client_secret": "LOOKERSDK_CLIENT_SECRET",
-    }
-    for key, env_var in env_map.items():
-        if not os.environ.get(env_var) and creds.get(key):
-            os.environ[env_var] = creds[key]
+    base_url = creds.get("base_url", "")
+    client_id = creds.get("client_id", "")
+    client_secret = creds.get("client_secret", "")
 
-    if not os.environ.get("LOOKERSDK_BASE_URL"):
+    if not base_url:
         logger.error(
             "Looker credentials not configured. "
-            "Set LOOKERSDK_BASE_URL or run 'dante ui' to configure."
+            "Run 'dante ui' to set base_url, client_id, and client_secret."
         )
         return None
 
     try:
-        return looker_sdk.init40()
+        sdk = looker_sdk.init40(config_settings={
+            "base_url": base_url,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        })
+        return sdk
     except Exception:
         logger.exception("Failed to initialize Looker SDK")
         return None
