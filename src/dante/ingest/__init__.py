@@ -11,20 +11,15 @@ Supported sources:
   - redash        Redash (experimental)
   - sigma         Sigma Computing (experimental)
   - superset      Apache Superset (experimental)
-  - metabase      Coming soon
-  - hex           Coming soon
-  - thoughtspot   Coming soon
-  - tableau       Coming soon
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
-
-_COMING_SOON = {"metabase", "hex", "thoughtspot", "tableau"}
 
 _CORE_SOURCES = {"looker", "databricks", "warehouse"}
 _EXPERIMENTAL_SOURCES = {"mode", "redash", "sigma", "superset"}
@@ -40,6 +35,7 @@ class IngestionConfig:
     dashboard_limit: int = 0  # 0 = unlimited
     skip_existing: bool = False
     dry_run: bool = False
+    progress_callback: Optional[Callable[[str, int, int], None]] = field(default=None, repr=False)
 
 
 @dataclass
@@ -75,12 +71,7 @@ async def run(config: IngestionConfig) -> IngestionResult:
         sources = sorted(_CORE_SOURCES)
 
     for source in sources:
-        if source in _COMING_SOON:
-            from dante.ingest.coming_soon import ingest_coming_soon
-            r = await ingest_coming_soon(source, config)
-            _merge_results(result, r)
-
-        elif source == "looker":
+        if source == "looker":
             from dante.ingest.looker import ingest_looker
             r = await ingest_looker(config)
             _merge_results(result, r)
@@ -115,8 +106,11 @@ async def run(config: IngestionConfig) -> IngestionResult:
             r = await ingest_superset(config)
             _merge_results(result, r)
 
+        elif source in _ALL_SOURCES:
+            # Source is registered but has no dispatch branch — shouldn't happen
+            logger.error("Source %r is registered but has no dispatch handler", source)
         else:
-            logger.warning("Unknown ingestion source: %s", source)
+            logger.warning("Unknown ingestion source %r. Valid sources: %s", source, sorted(_ALL_SOURCES))
 
     return result
 

@@ -230,6 +230,7 @@
 
   /* ── Loading spinner ── */
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--accent);border-top-color:var(--highlight);border-radius:50%;animation:spin .6s linear infinite}
+  .btn-primary .spinner{border-color:rgba(255,255,255,0.3);border-top-color:#fff}
   @keyframes spin{to{transform:rotate(360deg)}}
 
   /* ── Data Management sections ── */
@@ -1844,26 +1845,30 @@ function renderJobs(jobs) {
                       s === 'running'   ? 'background:#2d2000;color:var(--warn);border-color:var(--warn)' :
                                          'background:#2f2f2f;color:var(--text-secondary);border-color:var(--border)';
     var resultStr = '';
+    var progressStr = '';
     if (job.result) {
       var r = job.result;
       resultStr = '+' + r.created + ' / ~' + r.updated + ' / -' + r.skipped;
     } else if (s === 'running' || s === 'pending') {
       resultStr = 'in progress...';
     }
+    if ((s === 'running' || s === 'pending') && job.progress && job.progress.total > 0) {
+      var p = job.progress;
+      progressStr = 'Processing Dashboard (' + p.processed + '/' + p.total + '): ' + esc(p.current);
+    }
     var dateStr = '';
     if (job.started_at) {
       var d = new Date(job.started_at);
       dateStr = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
     }
-    html += '<div class="item-row">'
-      + '<div style="display:flex;align-items:center;gap:12px;flex:1">'
+    html += '<div class="item-row" style="flex-direction:column;align-items:stretch;gap:4px">'
+      + '<div style="display:flex;align-items:center;gap:12px">'
       + '  <span style="border:1px solid;border-radius:3px;padding:2px 8px;font-size:11px;font-weight:700;' + statusStyle + '">' + esc(s.charAt(0).toUpperCase() + s.slice(1)) + '</span>'
-      + '  <span class="item-label">' + esc(job.source || 'all') + '</span>'
-      + '</div>'
-      + '<div style="display:flex;align-items:center;gap:16px">'
+      + '  <span class="item-label" style="flex:1">' + esc(job.source || 'all') + '</span>'
       + (resultStr ? '<span class="item-meta" style="font-family:var(--mono)">' + esc(resultStr) + '</span>' : '')
       + '<span class="item-meta">' + esc(dateStr) + '</span>'
       + '</div>'
+      + (progressStr ? '<div style="font-size:11px;color:var(--warn);padding-left:2px;font-family:var(--mono)">' + progressStr + '</div>' : '')
       + '</div>';
   });
   html += '</div>';
@@ -1878,7 +1883,7 @@ async function runIngest() {
 
   var btn = document.getElementById('ingest-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Starting...';
+  btn.innerHTML = '<span class="spinner"></span> Generating...';
 
   try {
     await api('POST', '/api/ingest', {
@@ -1890,20 +1895,29 @@ async function runIngest() {
     await loadJobs();
     if (_pollInterval) clearInterval(_pollInterval);
     _pollInterval = setInterval(async function() {
-      await loadJobs();
-      var anyActive = _currentJobs.some(function(j) { return j.status === 'pending' || j.status === 'running'; });
-      if (!anyActive) {
-        clearInterval(_pollInterval);
-        _pollInterval = null;
-        btn.disabled = false;
-        btn.innerHTML = 'Generate Embeddings';
-        var lastJob = _currentJobs[0];
-        if (lastJob && lastJob.status === 'completed' && lastJob.result) {
-          var r = lastJob.result;
-          toast('Done: +' + r.created + ' created, ~' + r.updated + ' updated', 'success');
-        } else if (lastJob && lastJob.status === 'failed') {
-          toast('Ingestion failed: ' + (lastJob.error || 'unknown error'), 'error');
+      try {
+        await loadJobs();
+        var b = document.getElementById('ingest-btn');
+        var activeJob = _currentJobs.find(function(j) { return j.status === 'pending' || j.status === 'running'; });
+        if (!activeJob) {
+          clearInterval(_pollInterval);
+          _pollInterval = null;
+          if (b) { b.disabled = false; b.innerHTML = 'Generate Embeddings'; }
+          var lastJob = _currentJobs[0];
+          if (lastJob && lastJob.status === 'completed' && lastJob.result) {
+            var r = lastJob.result;
+            toast('Done: +' + r.created + ' created, ~' + r.updated + ' updated', 'success');
+          } else if (lastJob && lastJob.status === 'failed') {
+            toast('Ingestion failed: ' + (lastJob.error || 'unknown error'), 'error');
+          }
+        } else if (activeJob.progress) {
+          var p = activeJob.progress;
+          if (b) b.innerHTML = '<span class="spinner"></span> Dashboard ' + p.processed + '/' + p.total;
+        } else {
+          if (b) b.innerHTML = '<span class="spinner"></span> Generating...';
         }
+      } catch (pollErr) {
+        console.error('Poll error:', pollErr);
       }
     }, 2000);
   } catch (e) {

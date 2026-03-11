@@ -6,6 +6,7 @@ Projects reference a named connection in .dante/config.yaml.
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -15,6 +16,7 @@ from sqlalchemy.engine import Engine
 from dante.config import get_connection_config
 
 _engines: dict[str, Engine] = {}
+_engines_lock = threading.Lock()
 
 
 def _build_url(conn: dict) -> str:
@@ -65,9 +67,10 @@ def connect(url: str | None = None, name: str | None = None, root: Path | None =
         A SQLAlchemy Engine, cached by URL.
     """
     if url is not None:
-        if url not in _engines:
-            _engines[url] = create_engine(url, echo=False)
-        return _engines[url]
+        with _engines_lock:
+            if url not in _engines:
+                _engines[url] = create_engine(url, echo=False)
+            return _engines[url]
 
     conn = get_connection_config(name=name, root=root)
     if conn is None:
@@ -82,9 +85,10 @@ def connect(url: str | None = None, name: str | None = None, root: Path | None =
     else:
         conn_url = _build_url(conn)
 
-    if conn_url not in _engines:
-        _engines[conn_url] = create_engine(conn_url, echo=False)
-    return _engines[conn_url]
+    with _engines_lock:
+        if conn_url not in _engines:
+            _engines[conn_url] = create_engine(conn_url, echo=False)
+        return _engines[conn_url]
 
 
 def test_connection(conn_config: dict) -> tuple[bool, str]:
@@ -95,9 +99,13 @@ def test_connection(conn_config: dict) -> tuple[bool, str]:
         else:
             url = _build_url(conn_config)
         engine = create_engine(url, echo=False)
-        with engine.connect() as c:
-            c.execute(text("SELECT 1"))
-        engine.dispose()
-        return True, "Connection successful"
+        try:
+            with engine.connect() as c:
+                c.execute(text("SELECT 1"))
+            return True, "Connection successful"
+        except Exception as e:
+            return False, str(e)
+        finally:
+            engine.dispose()
     except Exception as e:
         return False, str(e)

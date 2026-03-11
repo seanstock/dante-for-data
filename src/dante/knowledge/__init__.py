@@ -12,10 +12,10 @@ sub-modules (notes, glossary, keywords, patterns, embeddings, search).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
 
+from dante._utils import run_async
 from dante.config import knowledge_dir
 from dante.knowledge import (
     embeddings as emb_module,
@@ -228,19 +228,7 @@ def _embed_pattern(pattern: dict, root: Path | None = None) -> None:
     text = _pattern_to_text(pattern)
 
     try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    try:
-        if loop and loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                vec = pool.submit(
-                    asyncio.run, vectorize.generate_embedding(text)
-                ).result()
-        else:
-            vec = asyncio.run(vectorize.generate_embedding(text))
+        vec = run_async(vectorize.generate_embedding(text))
     except RuntimeError as e:
         # OPENAI_API_KEY not set
         logger.debug("Skipping embedding generation: %s", e)

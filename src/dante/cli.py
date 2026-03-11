@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 import webbrowser
 from pathlib import Path
 
 import click
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -30,10 +33,10 @@ def main():
 
 @main.command()
 @click.argument("name", required=False)
-@click.option("--no-ui", is_flag=True, help="Skip opening the management UI")
+@click.option("--ui", is_flag=True, help="Open the management UI after scaffolding")
 @click.option("--cursor", is_flag=True, help="Generate .cursorrules instead of CLAUDE.md and skills (for Cursor IDE)")
-def launch(name: str | None, no_ui: bool, cursor: bool):
-    """Scaffold a new data science project and open the setup UI."""
+def launch(name: str | None, ui: bool, cursor: bool):
+    """Scaffold a new data science project."""
     from dante.scaffold import scaffold_project, scaffold_in_place
 
     if name:
@@ -57,7 +60,7 @@ def launch(name: str | None, no_ui: bool, cursor: bool):
     click.echo(f"  outputs/            — Generated charts, dashboards, reports")
     click.echo()
 
-    if not no_ui:
+    if ui:
         click.echo("Opening management UI...")
         _start_ui()
     else:
@@ -156,8 +159,8 @@ def status(as_json: bool):
             cur = conn.execute("SELECT COUNT(*) FROM embeddings")
             embeddings_count = cur.fetchone()[0]
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to count embeddings: %s", e)
 
     # Count outputs
     outputs_dir = root / "outputs"

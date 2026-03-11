@@ -6,11 +6,14 @@ Raises a clear error if OPENAI_API_KEY is not configured.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+logger = logging.getLogger(__name__)
 
 MODEL = "text-embedding-3-large"
 DIMENSIONS = 3072
@@ -25,8 +28,8 @@ def _get_client() -> AsyncOpenAI:
             from dante.config import load_global_credentials
             creds = load_global_credentials()
             api_key = creds.get("openai", {}).get("api_key", "")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to load credentials for OpenAI: %s", e)
     if not api_key:
         if sys.platform == "win32":
             hint = "  set OPENAI_API_KEY=sk-..."
@@ -49,12 +52,12 @@ async def generate_embedding(text: str) -> list[float]:
 
     Returns a list of floats with *DIMENSIONS* elements.
     """
-    client = _get_client()
-    response = await client.embeddings.create(
-        input=text,
-        model=MODEL,
-        dimensions=DIMENSIONS,
-    )
+    async with _get_client() as client:
+        response = await client.embeddings.create(
+            input=text,
+            model=MODEL,
+            dimensions=DIMENSIONS,
+        )
     return response.data[0].embedding
 
 
@@ -72,12 +75,11 @@ async def generate_embeddings_batch(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
 
-    client = _get_client()
-    response = await client.embeddings.create(
-        input=texts,
-        model=MODEL,
-        dimensions=DIMENSIONS,
-    )
-    # Response data is sorted by index, but let's be explicit
+    async with _get_client() as client:
+        response = await client.embeddings.create(
+            input=texts,
+            model=MODEL,
+            dimensions=DIMENSIONS,
+        )
     sorted_data = sorted(response.data, key=lambda x: x.index)
     return [item.embedding for item in sorted_data]

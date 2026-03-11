@@ -7,6 +7,7 @@ Results are returned as pandas DataFrames or formatted markdown tables.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from datetime import datetime, timezone
@@ -18,6 +19,8 @@ from sqlalchemy.engine import Engine
 
 from dante.connect import connect as get_engine
 from dante.config import project_dir
+
+logger = logging.getLogger(__name__)
 
 _MUTATING_KEYWORDS = {"INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "MERGE", "REPLACE"}
 _DEFAULT_LIMIT = 5000
@@ -51,8 +54,8 @@ def _log_query(query: str, rows: int, elapsed_ms: float, root: Path | None = Non
         }
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
-    except Exception:
-        pass  # logging should never break queries
+    except Exception as e:
+        logger.debug("Query logging failed: %s", e)
 
 
 def sql(
@@ -139,8 +142,8 @@ def tables(schema: str | None = None, engine: Engine | None = None) -> list[str]
             try:
                 for t in insp.get_table_names(schema=s):
                     result.append(f"{s}.{t}")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to list tables for schema %r: %s", s, e)
         return result
 
     return insp.get_table_names(schema=schema)
@@ -174,8 +177,8 @@ def describe(table: str, schema: str | None = None, engine: Engine | None = None
                 idx = col_names.index(col)
                 vals = [str(row[idx]) for row in sample_rows if row[idx] is not None]
                 samples[col] = ", ".join(vals[:3]) if vals else ""
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to fetch sample values for %r: %s", table, e)
 
     for col in columns:
         rows.append({
@@ -244,7 +247,8 @@ def profile(table: str, schema: str | None = None, engine: Engine | None = None)
                 else:
                     stats["min"] = ""
                     stats["max"] = ""
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to profile column %r in %r: %s", col_name, table, e)
             stats.update({"nulls": "", "null_pct": "", "distinct": "", "min": "", "max": ""})
 
         rows.append(stats)

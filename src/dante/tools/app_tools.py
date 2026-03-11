@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import threading
+
 # In-memory registry of active apps (app_id → App instance)
 _apps: dict[str, "dante.app.App"] = {}
+_apps_lock = threading.Lock()
 
 
 def dante_app_create(title: str, template: str = "dashboard") -> str:
@@ -20,7 +23,8 @@ def dante_app_create(title: str, template: str = "dashboard") -> str:
     from dante.app import App
 
     app = App(title=title, template=template)
-    _apps[app.id] = app
+    with _apps_lock:
+        _apps[app.id] = app
 
     css_help = {
         "dashboard": "CSS classes: .kpis, .kpi, .kpi-label, .kpi-value, .kpi-change.up/.down, .chart-card, .chart-card.wide, .data-table",
@@ -57,7 +61,8 @@ def dante_app_add_value(
     Returns:
         Confirmation message.
     """
-    app = _apps.get(app_id)
+    with _apps_lock:
+        app = _apps.get(app_id)
     if app is None:
         return f"Error: No app found with id `{app_id}`. Create one first with `dante_app_create`."
 
@@ -77,7 +82,8 @@ def dante_app_set_html(app_id: str, html: str, css: str = "", js: str = "") -> s
     Returns:
         Confirmation message.
     """
-    app = _apps.get(app_id)
+    with _apps_lock:
+        app = _apps.get(app_id)
     if app is None:
         return f"Error: No app found with id `{app_id}`."
 
@@ -87,7 +93,7 @@ def dante_app_set_html(app_id: str, html: str, css: str = "", js: str = "") -> s
     if js:
         app.js = js
 
-    slots = [name for name in app._values]
+    slots = app.value_names()
     return f"HTML set for app `{app_id}`. Slots bound: {', '.join(slots) if slots else 'none yet'}."
 
 
@@ -100,7 +106,8 @@ def dante_app_render(app_id: str) -> str:
     Returns:
         Path to the rendered HTML file.
     """
-    app = _apps.get(app_id)
+    with _apps_lock:
+        app = _apps.get(app_id)
     if app is None:
         return f"Error: No app found with id `{app_id}`. Create one first with `dante_app_create`."
 

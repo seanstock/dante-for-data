@@ -87,16 +87,16 @@ async def simplify_sql(raw_sql: str, chart_title: str, enabled: bool = True) -> 
             logger.warning("OPENAI_API_KEY not set, skipping SQL simplification")
             return raw_sql
 
-        client = AsyncOpenAI(api_key=api_key)
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": _SIMPLIFICATION_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0,
-            max_tokens=2000,
-        )
+        async with AsyncOpenAI(api_key=api_key) as client:
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": _SIMPLIFICATION_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0,
+                max_tokens=2000,
+            )
 
         simplified = _strip_markdown_wrappers(response.choices[0].message.content or "")
         if simplified:

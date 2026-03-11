@@ -32,6 +32,7 @@ from dante.config import (
 from dante.connect import test_connection
 
 _UI_DIR = Path(__file__).parent
+_jobs_lock = threading.Lock()
 
 
 # ── Job storage helpers ──────────────────────────────────────────────────────
@@ -65,39 +66,53 @@ def _run_ingest_background(
     import asyncio
     from dante.ingest import IngestionConfig, run as run_ingest
 
-    # Mark as running
-    jobs = _load_jobs()
-    for j in jobs:
-        if j["id"] == job_id:
-            j["status"] = "running"
-            break
-    _save_jobs(jobs)
+    def _progress(current: str, processed: int, total: int) -> None:
+        with _jobs_lock:
+            jobs = _load_jobs()
+            for j in jobs:
+                if j["id"] == job_id:
+                    j["progress"] = {"current": current, "processed": processed, "total": total}
+                    break
+            _save_jobs(jobs)
+
+    # Mark as running with initial progress
+    with _jobs_lock:
+        jobs = _load_jobs()
+        for j in jobs:
+            if j["id"] == job_id:
+                j["status"] = "running"
+                j["progress"] = {"current": "Connecting...", "processed": 0, "total": 0}
+                break
+        _save_jobs(jobs)
 
     try:
         config = IngestionConfig(
             sources=[source],
             skip_existing=skip_existing,
             dashboard_limit=dashboard_limit,
+            progress_callback=_progress,
         )
         result = asyncio.run(run_ingest(config))
 
-        jobs = _load_jobs()
-        for j in jobs:
-            if j["id"] == job_id:
-                j["status"] = "completed"
-                j["finished_at"] = datetime.now(timezone.utc).isoformat()
-                j["result"] = result.to_dict()
-                break
-        _save_jobs(jobs)
+        with _jobs_lock:
+            jobs = _load_jobs()
+            for j in jobs:
+                if j["id"] == job_id:
+                    j["status"] = "completed"
+                    j["finished_at"] = datetime.now(timezone.utc).isoformat()
+                    j["result"] = result.to_dict()
+                    break
+            _save_jobs(jobs)
     except Exception as exc:
-        jobs = _load_jobs()
-        for j in jobs:
-            if j["id"] == job_id:
-                j["status"] = "failed"
-                j["finished_at"] = datetime.now(timezone.utc).isoformat()
-                j["error"] = str(exc)
-                break
-        _save_jobs(jobs)
+        with _jobs_lock:
+            jobs = _load_jobs()
+            for j in jobs:
+                if j["id"] == job_id:
+                    j["status"] = "failed"
+                    j["finished_at"] = datetime.now(timezone.utc).isoformat()
+                    j["error"] = str(exc)
+                    break
+            _save_jobs(jobs)
 
 
 class DanteUIHandler(SimpleHTTPRequestHandler):
@@ -672,9 +687,27 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         pass
 
 
+def _cleanup_stale_jobs() -> None:
+    """Mark any jobs stuck in running/pending state as failed (server was restarted)."""
+    with _jobs_lock:
+        jobs = _load_jobs()
+        changed = False
+        for j in jobs:
+            if j.get("status") in ("running", "pending"):
+                j["status"] = "failed"
+                j["finished_at"] = datetime.now(timezone.utc).isoformat()
+                j["error"] = "Server restarted while job was running"
+                j.pop("progress", None)
+                changed = True
+        if changed:
+            _save_jobs(jobs)
+
+
 def run_server(port: int = 4040, project_root: Path | None = None):
     """Run the dante UI server."""
     import signal
+
+    _cleanup_stale_jobs()
 
     root = project_root or Path.cwd()
     handler = partial(DanteUIHandler, project_root=root)

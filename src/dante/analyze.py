@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import re
 import shutil
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dante._utils import slugify
 from dante.config import _find_project_root, project_dir
 
 
@@ -20,6 +22,7 @@ def checkpoint(name: str, root: Path | None = None) -> str:
     Returns:
         Confirmation message with checkpoint path.
     """
+    name = re.sub(r"[^\w\-]", "_", name)
     root = root or _find_project_root()
     checkpoints_dir = project_dir(root) / "checkpoints"
     checkpoint_path = checkpoints_dir / name
@@ -42,27 +45,43 @@ def checkpoint(name: str, root: Path | None = None) -> str:
     meta = {
         "name": name,
         "created": datetime.now(timezone.utc).isoformat(),
-        "analysis_files": len(list((checkpoint_path / "analysis").rglob("*"))) if (checkpoint_path / "analysis").exists() else 0,
-        "output_files": len(list((checkpoint_path / "outputs").rglob("*"))) if (checkpoint_path / "outputs").exists() else 0,
+        "analysis_files": sum(1 for _ in (checkpoint_path / "analysis").rglob("*") if _.is_file()) if (checkpoint_path / "analysis").exists() else 0,
+        "output_files": sum(1 for _ in (checkpoint_path / "outputs").rglob("*") if _.is_file()) if (checkpoint_path / "outputs").exists() else 0,
     }
-    import json
     (checkpoint_path / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     return f"Checkpoint '{name}' saved at {checkpoint_path}"
 
 
-def rollback(name: str, root: Path | None = None) -> str:
+def rollback(name: str = "", root: Path | None = None) -> str:
     """Restore analysis/ and outputs/ from a checkpoint.
 
     Args:
-        name: Checkpoint name to restore.
+        name: Checkpoint name to restore. If empty, uses the most recent.
         root: Project root.
 
     Returns:
         Confirmation message.
     """
     root = root or _find_project_root()
-    checkpoint_path = project_dir(root) / "checkpoints" / name
+    checkpoints_dir = project_dir(root) / "checkpoints"
+
+    if not name:
+        # Find most recent by metadata timestamp
+        candidates = []
+        if checkpoints_dir.exists():
+            for d in checkpoints_dir.iterdir():
+                meta_path = d / "meta.json"
+                if d.is_dir() and meta_path.exists():
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    candidates.append((meta.get("created", ""), d.name))
+        if not candidates:
+            return "No checkpoints found."
+        candidates.sort(reverse=True)
+        name = candidates[0][1]
+
+    name = re.sub(r"[^\w\-]", "_", name)
+    checkpoint_path = checkpoints_dir / name
 
     if not checkpoint_path.exists():
         available = list_checkpoints(root)
@@ -165,9 +184,7 @@ def report(
     html_parts.extend(["</body></html>"])
 
     # Write report
-    import re
-    slug = re.sub(r"[^\w\s-]", "", title.lower())
-    slug = re.sub(r"[\s_]+", "-", slug).strip("-") or "report"
+    slug = slugify(title, fallback="report")
     out_path = outputs_dir / f"{slug}.html"
     out_path.write_text("\n".join(html_parts), encoding="utf-8")
 

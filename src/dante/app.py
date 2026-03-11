@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import re
 import webbrowser
 from pathlib import Path
 
+from dante._utils import slugify
 from dante.config import _find_project_root
 from dante.query import sql as run_sql
 
@@ -17,7 +17,7 @@ class App:
         self.title = title
         self.template = template
         self.root = root or _find_project_root()
-        self.id = _slugify(title)
+        self.id = slugify(title, fallback="app")
         self._values: dict[str, dict] = {}  # name → {sql, format}
         self._html: str = ""
         self._css: str = ""
@@ -60,6 +60,10 @@ class App:
     def remove_value(self, name: str):
         """Remove a computed value."""
         self._values.pop(name, None)
+
+    def value_names(self) -> list[str]:
+        """Return the names of all bound value slots."""
+        return list(self._values)
 
     def render(self) -> str:
         """Execute all queries, substitute values, write HTML to outputs/.
@@ -131,12 +135,6 @@ def create(title: str, template: str = "dashboard", root: Path | None = None) ->
         App instance.
     """
     return App(title=title, template=template, root=root)
-
-
-def _slugify(text: str) -> str:
-    slug = re.sub(r"[^\w\s-]", "", text.lower())
-    slug = re.sub(r"[\s_]+", "-", slug).strip("-")
-    return slug or "app"
 
 
 def _format_scalar(val) -> str:

@@ -22,13 +22,12 @@ File format (e.g. what-is-our-monthly-churn-rate.sql):
 
 from __future__ import annotations
 
-import re
-import unicodedata
 from datetime import date
 from pathlib import Path
 
 import yaml
 
+from dante._utils import slugify
 from dante.config import knowledge_dir
 
 
@@ -37,20 +36,6 @@ def _patterns_dir(root: Path | None = None) -> Path:
     p = knowledge_dir(root) / "patterns"
     p.mkdir(parents=True, exist_ok=True)
     return p
-
-
-def _slugify(text: str) -> str:
-    """Convert a question string into a filename-safe slug.
-
-    "What is our monthly churn rate?" -> "what-is-our-monthly-churn-rate"
-    """
-    # Normalize unicode, lowercase, strip non-alphanumeric
-    text = unicodedata.normalize("NFKD", text)
-    text = text.lower()
-    text = re.sub(r"[^\w\s-]", "", text)
-    text = re.sub(r"[-\s]+", "-", text).strip("-")
-    # Truncate to a reasonable filename length
-    return text[:80]
 
 
 def _parse_frontmatter(content: str) -> tuple[dict, str]:
@@ -92,7 +77,7 @@ def save_pattern(
 
     Returns the path to the created file.
     """
-    slug = _slugify(question)
+    slug = slugify(question)
     filename = f"{slug}.sql"
     path = _patterns_dir(root) / filename
 
@@ -154,7 +139,7 @@ def get_pattern(question: str, root: Path | None = None) -> dict | None:
 
     Returns the pattern dict or None if not found.
     """
-    slug = _slugify(question)
+    slug = slugify(question)
     path = _patterns_dir(root) / f"{slug}.sql"
     if not path.exists():
         return None

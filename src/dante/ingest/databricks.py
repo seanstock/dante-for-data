@@ -139,7 +139,11 @@ def _fetch_charts(session: requests.Session, base_url: str,
 
         serialized = detail.get("serialized_dashboard", "")
         if serialized:
-            charts.extend(_parse_dashboard_charts(dash_id, dash_name, serialized))
+            new_charts = _parse_dashboard_charts(dash_id, dash_name, serialized)
+            for c in new_charts:
+                c["dashboard_num"] = idx + 1
+                c["total_dashboards"] = len(dashboards)
+            charts.extend(new_charts)
 
         if (idx + 1) % 10 == 0:
             logger.info("  Processed %d/%d dashboards (%d charts)",
@@ -212,6 +216,13 @@ async def ingest_databricks(config: IngestionConfig) -> IngestionResult:
         except Exception:
             logger.warning("Failed to process chart '%s'", title, exc_info=True)
             result.errors += 1
+
+        if config.progress_callback:
+            config.progress_callback(
+                f"{chart['dashboard_title']} | {title}",
+                chart["dashboard_num"],
+                chart["total_dashboards"],
+            )
 
         if (idx + 1) % 10 == 0:
             time.sleep(0.5)

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 
+from dante._utils import slugify
 from dante.config import _find_project_root
 
 _DARK_TEMPLATE = "plotly_dark"
@@ -23,13 +23,6 @@ _KIND_MAP = {
     "histogram": "histogram",
     "box": "box",
 }
-
-
-def _slugify(title: str) -> str:
-    """Convert title to a filename-safe slug."""
-    slug = re.sub(r"[^\w\s-]", "", title.lower())
-    slug = re.sub(r"[\s_]+", "-", slug).strip("-")
-    return slug or "chart"
 
 
 def chart(
@@ -78,7 +71,7 @@ def chart(
 
     # Determine output path
     if filename is None:
-        filename = _slugify(title or "chart")
+        filename = slugify(title or "chart", fallback="chart")
     ext = "png" if format == "png" else "html"
     out_path = outputs_dir / f"{filename}.{ext}"
 

@@ -8,10 +8,10 @@ deduplicated, and returned as a ranked list.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
 
+from dante._utils import run_async
 from dante.config import knowledge_dir
 from dante.knowledge import keywords as kw_module
 from dante.knowledge import embeddings as emb_module
@@ -100,23 +100,4 @@ def search(
     If an event loop is already running (e.g. inside an async MCP handler),
     the caller should use search_async directly.
     """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        # We're inside an async context -- create a new task
-        # This shouldn't normally happen when called from sync code,
-        # but handle it gracefully.
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(
-                asyncio.run,
-                search_async(query, top_k=top_k, threshold=threshold, root=root),
-            )
-            return future.result()
-    else:
-        return asyncio.run(
-            search_async(query, top_k=top_k, threshold=threshold, root=root)
-        )
+    return run_async(search_async(query, top_k=top_k, threshold=threshold, root=root))
