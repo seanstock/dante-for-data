@@ -14,7 +14,8 @@ def dante_search(query: str, top_k: int = 10) -> str:
     terms = glossary.load()
     query_lower = query.lower()
     term_matches = [
-        (t, d) for t, d in terms.items()
+        (t, d)
+        for t, d in terms.items()
         if query_lower in t.lower() or query_lower in (d or "").lower()
     ]
 

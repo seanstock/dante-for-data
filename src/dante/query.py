@@ -22,14 +22,26 @@ from dante.config import project_dir
 
 logger = logging.getLogger(__name__)
 
-_MUTATING_KEYWORDS = {"INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "MERGE", "REPLACE"}
+_MUTATING_KEYWORDS = {
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "DROP",
+    "ALTER",
+    "TRUNCATE",
+    "CREATE",
+    "MERGE",
+    "REPLACE",
+}
 _DEFAULT_LIMIT = 5000
 
 
 def _is_mutating(query: str) -> bool:
     """Check if a query contains mutating SQL statements."""
     stripped = re.sub(r"--[^\n]*", "", query)  # strip line comments
-    stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.DOTALL)  # strip block comments
+    stripped = re.sub(
+        r"/\*.*?\*/", "", stripped, flags=re.DOTALL
+    )  # strip block comments
     first_word = stripped.strip().split()[0].upper() if stripped.strip() else ""
     return first_word in _MUTATING_KEYWORDS
 
@@ -42,7 +54,9 @@ def _inject_limit(query: str, limit: int) -> str:
     return f"{stripped}\nLIMIT {limit}"
 
 
-def _log_query(query: str, rows: int, elapsed_ms: float, root: Path | None = None) -> None:
+def _log_query(
+    query: str, rows: int, elapsed_ms: float, root: Path | None = None
+) -> None:
     """Append query to .dante/query_log.jsonl."""
     try:
         log_path = project_dir(root) / "query_log.jsonl"
@@ -157,7 +171,9 @@ def tables_markdown(schema: str | None = None, engine: Engine | None = None) -> 
     return "\n".join(f"- `{t}`" for t in sorted(tbl_list))
 
 
-def describe(table: str, schema: str | None = None, engine: Engine | None = None) -> pd.DataFrame:
+def describe(
+    table: str, schema: str | None = None, engine: Engine | None = None
+) -> pd.DataFrame:
     """Get column metadata for a table: name, type, nullable, and sample values."""
     if engine is None:
         engine = get_engine()
@@ -181,17 +197,21 @@ def describe(table: str, schema: str | None = None, engine: Engine | None = None
         logger.debug("Failed to fetch sample values for %r: %s", table, e)
 
     for col in columns:
-        rows.append({
-            "column": col["name"],
-            "type": str(col["type"]),
-            "nullable": col.get("nullable", True),
-            "samples": samples.get(col["name"], ""),
-        })
+        rows.append(
+            {
+                "column": col["name"],
+                "type": str(col["type"]),
+                "nullable": col.get("nullable", True),
+                "samples": samples.get(col["name"], ""),
+            }
+        )
 
     return pd.DataFrame(rows)
 
 
-def describe_markdown(table: str, schema: str | None = None, engine: Engine | None = None) -> str:
+def describe_markdown(
+    table: str, schema: str | None = None, engine: Engine | None = None
+) -> str:
     """Get column metadata as a markdown table."""
     df = describe(table, schema=schema, engine=engine)
     if df.empty:
@@ -200,11 +220,15 @@ def describe_markdown(table: str, schema: str | None = None, engine: Engine | No
     lines = ["| Column | Type | Nullable | Samples |"]
     lines.append("| --- | --- | --- | --- |")
     for _, row in df.iterrows():
-        lines.append(f"| `{row['column']}` | {row['type']} | {row['nullable']} | {row['samples']} |")
+        lines.append(
+            f"| `{row['column']}` | {row['type']} | {row['nullable']} | {row['samples']} |"
+        )
     return "\n".join(lines)
 
 
-def profile(table: str, schema: str | None = None, engine: Engine | None = None) -> pd.DataFrame:
+def profile(
+    table: str, schema: str | None = None, engine: Engine | None = None
+) -> pd.DataFrame:
     """Statistical profile: row count, nulls, cardinality, min/max per column."""
     if engine is None:
         engine = get_engine()
@@ -235,12 +259,19 @@ def profile(table: str, schema: str | None = None, engine: Engine | None = None)
                 )
                 r = conn.execute(q).fetchone()
                 stats["nulls"] = r[0]
-                stats["null_pct"] = round(r[0] / total_rows * 100, 1) if total_rows > 0 else 0
+                stats["null_pct"] = (
+                    round(r[0] / total_rows * 100, 1) if total_rows > 0 else 0
+                )
                 stats["distinct"] = r[1]
 
                 # Min/max for numeric and date types
-                if any(t in col_type for t in ("INT", "FLOAT", "NUMERIC", "DECIMAL", "DATE", "TIME")):
-                    q2 = text(f"SELECT MIN({col_name}), MAX({col_name}) FROM {qualified}")
+                if any(
+                    t in col_type
+                    for t in ("INT", "FLOAT", "NUMERIC", "DECIMAL", "DATE", "TIME")
+                ):
+                    q2 = text(
+                        f"SELECT MIN({col_name}), MAX({col_name}) FROM {qualified}"
+                    )
                     r2 = conn.execute(q2).fetchone()
                     stats["min"] = str(r2[0]) if r2[0] is not None else ""
                     stats["max"] = str(r2[1]) if r2[1] is not None else ""
@@ -249,14 +280,18 @@ def profile(table: str, schema: str | None = None, engine: Engine | None = None)
                     stats["max"] = ""
         except Exception as e:
             logger.debug("Failed to profile column %r in %r: %s", col_name, table, e)
-            stats.update({"nulls": "", "null_pct": "", "distinct": "", "min": "", "max": ""})
+            stats.update(
+                {"nulls": "", "null_pct": "", "distinct": "", "min": "", "max": ""}
+            )
 
         rows.append(stats)
 
     return pd.DataFrame(rows)
 
 
-def profile_markdown(table: str, schema: str | None = None, engine: Engine | None = None) -> str:
+def profile_markdown(
+    table: str, schema: str | None = None, engine: Engine | None = None
+) -> str:
     """Statistical profile as a markdown table."""
     df = profile(table, schema=schema, engine=engine)
     if df.empty:

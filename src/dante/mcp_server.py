@@ -10,7 +10,6 @@ Or via the console script entry point:
 from __future__ import annotations
 
 import asyncio
-import json
 import traceback
 
 from mcp.server import Server
@@ -19,8 +18,17 @@ from mcp.types import TextContent, Tool
 
 from dante.tools.sql_tools import dante_sql, dante_tables, dante_describe, dante_profile
 from dante.tools.chart_tools import dante_chart
-from dante.tools.knowledge_tools import dante_search, dante_save_pattern, dante_define_term
-from dante.tools.app_tools import dante_app_create, dante_app_add_value, dante_app_set_html, dante_app_render
+from dante.tools.knowledge_tools import (
+    dante_search,
+    dante_save_pattern,
+    dante_define_term,
+)
+from dante.tools.app_tools import (
+    dante_app_create,
+    dante_app_add_value,
+    dante_app_set_html,
+    dante_app_render,
+)
 from dante.tools.analyze_tools import dante_checkpoint, dante_rollback
 
 # ---------------------------------------------------------------------------
@@ -147,7 +155,15 @@ TOOLS = [
                     "type": "string",
                     "description": "Chart type: bar, line, scatter, pie, heatmap, histogram, box.",
                     "default": "bar",
-                    "enum": ["bar", "line", "scatter", "pie", "heatmap", "histogram", "box"],
+                    "enum": [
+                        "bar",
+                        "line",
+                        "scatter",
+                        "pie",
+                        "heatmap",
+                        "histogram",
+                        "box",
+                    ],
                 },
                 "title": {
                     "type": "string",

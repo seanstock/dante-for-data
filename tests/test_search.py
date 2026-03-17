@@ -1,6 +1,5 @@
 """Tests for dante.knowledge.search — unified keyword + embedding search."""
 
-import pytest
 
 from dante.knowledge import keywords as kw_module
 from dante.knowledge.search import search
@@ -59,10 +58,12 @@ def test_search_embedding_skipped_without_api_key(tmp_path, monkeypatch):
     # Create a dummy embeddings DB
     from dante.knowledge.embeddings import init_db, upsert
     from dante.config import project_dir
+
     db_path = project_dir(tmp_path) / "knowledge" / "embeddings.db"
     conn = init_db(db_path)
-    upsert(conn, id="q1", question="Revenue?", sql="SELECT 1",
-           embedding_vector=[1.0, 0.0])
+    upsert(
+        conn, id="q1", question="Revenue?", sql="SELECT 1", embedding_vector=[1.0, 0.0]
+    )
     conn.close()
 
     # Should not raise, just skip embedding search

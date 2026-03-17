@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 import yaml
 
@@ -37,8 +37,8 @@ _jobs_lock = threading.Lock()
 
 # ── Job storage helpers ──────────────────────────────────────────────────────
 
+
 def _jobs_file() -> Path:
-    from dante.config import global_dir
     return global_dir() / "jobs.json"
 
 
@@ -71,7 +71,11 @@ def _run_ingest_background(
             jobs = _load_jobs()
             for j in jobs:
                 if j["id"] == job_id:
-                    j["progress"] = {"current": current, "processed": processed, "total": total}
+                    j["progress"] = {
+                        "current": current,
+                        "processed": processed,
+                        "total": total,
+                    }
                     break
             _save_jobs(jobs)
 
@@ -139,7 +143,11 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
 
         if path.startswith("/api/"):
             content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length).decode("utf-8") if content_length else "{}"
+            body = (
+                self.rfile.read(content_length).decode("utf-8")
+                if content_length
+                else "{}"
+            )
             try:
                 data = json.loads(body) if body else {}
             except json.JSONDecodeError:
@@ -154,7 +162,11 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
 
         if path.startswith("/api/patterns/"):
             content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length).decode("utf-8") if content_length else "{}"
+            body = (
+                self.rfile.read(content_length).decode("utf-8")
+                if content_length
+                else "{}"
+            )
             try:
                 data = json.loads(body) if body else {}
             except json.JSONDecodeError:
@@ -178,14 +190,20 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             new_path = save_pattern(
                 question=question,
                 sql=sql,
-                tables=tables if isinstance(tables, list) else [t.strip() for t in tables.split(",") if t.strip()],
+                tables=tables
+                if isinstance(tables, list)
+                else [t.strip() for t in tables.split(",") if t.strip()],
                 description=description,
             )
             self._json_response({"ok": True, "filename": new_path.name})
 
         elif path.startswith("/api/embeddings/"):
             content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length).decode("utf-8") if content_length else "{}"
+            body = (
+                self.rfile.read(content_length).decode("utf-8")
+                if content_length
+                else "{}"
+            )
             try:
                 data = json.loads(body) if body else {}
             except json.JSONDecodeError:
@@ -198,6 +216,7 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 return
 
             from dante.knowledge.embeddings import init_db, upsert, get
+
             db_path = knowledge_dir() / "embeddings.db"
             conn = init_db(db_path)
 
@@ -320,10 +339,12 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
 
         elif path == "/api/patterns":
             from dante.knowledge.patterns import list_patterns
+
             self._json_response(list_patterns())
 
         elif path == "/api/embeddings":
             from dante.knowledge.embeddings import init_db, list_all
+
             db_path = knowledge_dir() / "embeddings.db"
             if db_path.exists():
                 conn = init_db(db_path)
@@ -415,6 +436,7 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
 
         elif path == "/api/patterns":
             from dante.knowledge.patterns import save_pattern
+
             question = data.get("question", "")
             sql = data.get("sql", "")
             tables = data.get("tables", [])
@@ -425,7 +447,9 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             new_path = save_pattern(
                 question=question,
                 sql=sql,
-                tables=tables if isinstance(tables, list) else [t.strip() for t in tables.split(",") if t.strip()],
+                tables=tables
+                if isinstance(tables, list)
+                else [t.strip() for t in tables.split(",") if t.strip()],
                 description=description,
             )
             self._json_response({"ok": True, "filename": new_path.name})
@@ -444,7 +468,13 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                     existing = yaml.safe_load(f) or {}
             existing[name] = content
             with open(notes_path, "w", encoding="utf-8") as f:
-                yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
+                yaml.dump(
+                    existing,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=True,
+                    allow_unicode=True,
+                )
             self._json_response({"ok": True})
 
         elif path == "/api/rules":
@@ -461,7 +491,13 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                     existing = yaml.safe_load(f) or {}
             existing[name] = content
             with open(rules_path, "w", encoding="utf-8") as f:
-                yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
+                yaml.dump(
+                    existing,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=True,
+                    allow_unicode=True,
+                )
             self._json_response({"ok": True})
 
         elif path.startswith("/api/embeddings/"):
@@ -471,7 +507,8 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 self._json_response({"error": "Question is required"}, 400)
                 return
 
-            from dante.knowledge.embeddings import init_db, upsert, get
+            from dante.knowledge.embeddings import init_db, upsert
+
             db_path = knowledge_dir() / "embeddings.db"
             conn = init_db(db_path)
 
@@ -564,7 +601,13 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                     existing = yaml.safe_load(f) or {}
                 existing.pop(name, None)
                 with open(notes_path, "w", encoding="utf-8") as f:
-                    yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
+                    yaml.dump(
+                        existing,
+                        f,
+                        default_flow_style=False,
+                        sort_keys=True,
+                        allow_unicode=True,
+                    )
             self._json_response({"ok": True})
 
         elif path.startswith("/api/rules/"):
@@ -575,12 +618,19 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                     existing = yaml.safe_load(f) or {}
                 existing.pop(name, None)
                 with open(rules_path, "w", encoding="utf-8") as f:
-                    yaml.dump(existing, f, default_flow_style=False, sort_keys=True, allow_unicode=True)
+                    yaml.dump(
+                        existing,
+                        f,
+                        default_flow_style=False,
+                        sort_keys=True,
+                        allow_unicode=True,
+                    )
             self._json_response({"ok": True})
 
         elif path.startswith("/api/embeddings/"):
             emb_id = path.split("/")[-1]
             from dante.knowledge.embeddings import init_db, delete as emb_delete
+
             db_path = knowledge_dir() / "embeddings.db"
             if db_path.exists():
                 conn = init_db(db_path)
@@ -597,10 +647,15 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             # Also delete from embedding DB
             try:
                 from dante.knowledge.embeddings import init_db, delete as emb_delete
+
                 db_path = knowledge_dir() / "embeddings.db"
                 if db_path.exists():
                     conn = init_db(db_path)
-                    slug = filename.replace(".sql", "") if filename.endswith(".sql") else filename
+                    slug = (
+                        filename.replace(".sql", "")
+                        if filename.endswith(".sql")
+                        else filename
+                    )
                     emb_delete(conn, slug)
                     conn.close()
             except Exception:
@@ -613,7 +668,6 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
     def _get_status(self) -> dict:
         from dante.config import get_default_connection_name, get_connection_config
 
-        pd = project_dir(self.project_root)
         conn_name = get_default_connection_name(self.project_root)
         conn_config = get_connection_config(root=self.project_root)
 
@@ -643,6 +697,7 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         embeddings_db = kd / "embeddings.db"
         if embeddings_db.exists():
             import sqlite3
+
             try:
                 conn = sqlite3.connect(str(embeddings_db))
                 cur = conn.execute("SELECT COUNT(*) FROM embeddings")
@@ -653,13 +708,17 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
 
         # Check integration credentials
         from dante.config import load_global_credentials
+
         creds = load_global_credentials()
         looker_configured = bool(creds.get("looker", {}).get("base_url"))
         databricks_configured = bool(creds.get("databricks", {}).get("workspace_url"))
         mode_configured = bool(creds.get("mode", {}).get("token"))
         redash_configured = bool(creds.get("redash", {}).get("api_key"))
         sigma_configured = bool(creds.get("sigma", {}).get("client_id"))
-        superset_configured = bool(creds.get("superset", {}).get("url") and creds.get("superset", {}).get("username"))
+        superset_configured = bool(
+            creds.get("superset", {}).get("url")
+            and creds.get("superset", {}).get("username")
+        )
 
         return {
             "connection": {

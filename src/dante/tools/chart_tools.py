@@ -67,7 +67,9 @@ def dante_chart(
                 theme=theme,
             )
         else:
-            return "**Error:** data must be a JSON array of objects or a Plotly spec dict."
+            return (
+                "**Error:** data must be a JSON array of objects or a Plotly spec dict."
+            )
 
         return f"Chart saved to: `{result_path}`"
     except Exception as e:

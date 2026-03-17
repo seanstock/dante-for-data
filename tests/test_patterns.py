@@ -1,17 +1,14 @@
 """Tests for dante.knowledge.patterns."""
 
-from pathlib import Path
 
-import pytest
-import yaml
 
+from dante._utils import slugify as _slugify
 from dante.knowledge.patterns import (
     save_pattern,
     load_pattern,
     list_patterns,
     delete_pattern,
     get_pattern,
-    _slugify,
     _parse_frontmatter,
 )
 
@@ -20,8 +17,11 @@ from dante.knowledge.patterns import (
 # _slugify
 # ---------------------------------------------------------------------------
 
+
 def test_slugify_basic():
-    assert _slugify("What is our monthly churn rate?") == "what-is-our-monthly-churn-rate"
+    assert (
+        _slugify("What is our monthly churn rate?") == "what-is-our-monthly-churn-rate"
+    )
 
 
 def test_slugify_lowercase():
@@ -54,6 +54,7 @@ def test_slugify_unicode():
 # _parse_frontmatter
 # ---------------------------------------------------------------------------
 
+
 def test_parse_frontmatter_basic():
     content = "---\nquestion: What is churn?\ntables: [subscriptions]\n---\nSELECT 1\n"
     fm, sql = _parse_frontmatter(content)
@@ -79,6 +80,7 @@ def test_parse_frontmatter_unclosed():
 # ---------------------------------------------------------------------------
 # save_pattern / load_pattern
 # ---------------------------------------------------------------------------
+
 
 def test_save_and_load_pattern(tmp_path):
     path = save_pattern(
@@ -136,6 +138,7 @@ def test_save_pattern_no_tables(tmp_path):
 
 def test_save_pattern_created_date(tmp_path):
     from datetime import date
+
     path = save_pattern("Date test?", "SELECT 1", root=tmp_path)
     p = load_pattern(path)
     assert p["created"] == date.today().isoformat()
@@ -144,6 +147,7 @@ def test_save_pattern_created_date(tmp_path):
 # ---------------------------------------------------------------------------
 # list_patterns
 # ---------------------------------------------------------------------------
+
 
 def test_list_patterns_empty(tmp_path):
     assert list_patterns(tmp_path) == []
@@ -169,6 +173,7 @@ def test_list_patterns_sorted_by_filename(tmp_path):
 # delete_pattern
 # ---------------------------------------------------------------------------
 
+
 def test_delete_existing(tmp_path):
     path = save_pattern("Delete me?", "SELECT 1", root=tmp_path)
     result = delete_pattern(path.name, root=tmp_path)
@@ -193,6 +198,7 @@ def test_delete_does_not_affect_others(tmp_path):
 # ---------------------------------------------------------------------------
 # get_pattern
 # ---------------------------------------------------------------------------
+
 
 def test_get_pattern_existing(tmp_path):
     save_pattern("Find me by question?", "SELECT 42", root=tmp_path)

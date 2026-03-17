@@ -1,10 +1,7 @@
 """Tests for dante.config — project and global configuration management."""
 
-import os
 from pathlib import Path
 
-import pytest
-import yaml
 
 from dante.config import (
     global_dir,
@@ -25,6 +22,7 @@ from dante.config import (
 # global_dir
 # ---------------------------------------------------------------------------
 
+
 def test_global_dir_creates_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
@@ -36,6 +34,7 @@ def test_global_dir_creates_directory(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # project_dir
 # ---------------------------------------------------------------------------
+
 
 def test_project_dir_creates_dot_dante(tmp_path):
     d = project_dir(tmp_path)
@@ -52,6 +51,7 @@ def test_project_dir_idempotent(tmp_path):
 # ---------------------------------------------------------------------------
 # _find_project_root
 # ---------------------------------------------------------------------------
+
 
 def test_find_project_root_env_var_takes_priority(tmp_path, monkeypatch):
     """DANTE_PROJECT env var overrides directory walking."""
@@ -116,6 +116,7 @@ def test_find_project_root_falls_back_to_cwd(tmp_path, monkeypatch):
 # Global connections
 # ---------------------------------------------------------------------------
 
+
 def test_load_global_connections_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     data = load_global_connections()
@@ -126,7 +127,11 @@ def test_save_and_load_global_connections(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     payload = {
         "connections": {
-            "prod": {"dialect": "postgresql", "host": "db.example.com", "database": "mydb"}
+            "prod": {
+                "dialect": "postgresql",
+                "host": "db.example.com",
+                "database": "mydb",
+            }
         }
     }
     save_global_connections(payload)
@@ -149,6 +154,7 @@ def test_load_global_connections_bare_dict(tmp_path, monkeypatch):
 # Global credentials
 # ---------------------------------------------------------------------------
 
+
 def test_load_global_credentials_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     data = load_global_credentials()
@@ -166,6 +172,7 @@ def test_save_and_load_global_credentials(tmp_path, monkeypatch):
 # Project config
 # ---------------------------------------------------------------------------
 
+
 def test_load_project_config_empty(tmp_path):
     data = load_project_config(tmp_path)
     assert data == {}
@@ -181,6 +188,7 @@ def test_save_and_load_project_config(tmp_path):
 # get_default_connection_name
 # ---------------------------------------------------------------------------
 
+
 def test_get_default_connection_name_none(tmp_path):
     assert get_default_connection_name(tmp_path) is None
 
@@ -194,17 +202,16 @@ def test_get_default_connection_name_set(tmp_path):
 # get_connection_config
 # ---------------------------------------------------------------------------
 
+
 def test_get_connection_config_no_config(tmp_path):
     assert get_connection_config(root=tmp_path) is None
 
 
 def test_get_connection_config_resolves_named(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    save_global_connections({
-        "connections": {
-            "dev": {"dialect": "sqlite", "database": "/tmp/dev.db"}
-        }
-    })
+    save_global_connections(
+        {"connections": {"dev": {"dialect": "sqlite", "database": "/tmp/dev.db"}}}
+    )
     save_project_config({"default_connection": "dev"}, root=tmp_path)
     cfg = get_connection_config(root=tmp_path)
     assert cfg is not None
@@ -214,16 +221,18 @@ def test_get_connection_config_resolves_named(tmp_path, monkeypatch):
 def test_get_connection_config_resolves_password_env(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.setenv("MY_DB_PW", "secret123")
-    save_global_connections({
-        "connections": {
-            "prod": {
-                "dialect": "postgresql",
-                "host": "db.example.com",
-                "database": "app",
-                "password_env": "MY_DB_PW",
+    save_global_connections(
+        {
+            "connections": {
+                "prod": {
+                    "dialect": "postgresql",
+                    "host": "db.example.com",
+                    "database": "app",
+                    "password_env": "MY_DB_PW",
+                }
             }
         }
-    })
+    )
     save_project_config({"default_connection": "prod"}, root=tmp_path)
     cfg = get_connection_config(root=tmp_path)
     assert cfg["password"] == "secret123"
@@ -234,15 +243,17 @@ def test_get_connection_config_missing_env_var(tmp_path, monkeypatch):
     """If password_env is set but env var doesn't exist, no password field added."""
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.delenv("MISSING_VAR", raising=False)
-    save_global_connections({
-        "connections": {
-            "prod": {
-                "dialect": "postgresql",
-                "database": "app",
-                "password_env": "MISSING_VAR",
+    save_global_connections(
+        {
+            "connections": {
+                "prod": {
+                    "dialect": "postgresql",
+                    "database": "app",
+                    "password_env": "MISSING_VAR",
+                }
             }
         }
-    })
+    )
     save_project_config({"default_connection": "prod"}, root=tmp_path)
     cfg = get_connection_config(root=tmp_path)
     assert "password" not in cfg

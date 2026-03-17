@@ -34,7 +34,9 @@ def _get_credentials() -> dict | None:
     return creds
 
 
-def _authenticate(base_url: str, username: str, password: str) -> requests.Session | None:
+def _authenticate(
+    base_url: str, username: str, password: str
+) -> requests.Session | None:
     """Authenticate with Superset and return a session with JWT headers."""
     session = requests.Session()
     try:
@@ -58,8 +60,9 @@ def _authenticate(base_url: str, username: str, password: str) -> requests.Sessi
         return None
 
 
-def _api_get(session: requests.Session, base_url: str, path: str,
-             params: dict | None = None) -> dict | None:
+def _api_get(
+    session: requests.Session, base_url: str, path: str, params: dict | None = None
+) -> dict | None:
     try:
         resp = session.get(
             f"{base_url}/api/v1{path}",
@@ -73,11 +76,9 @@ def _api_get(session: requests.Session, base_url: str, path: str,
         return None
 
 
-def _fetch_charts(session: requests.Session, base_url: str,
-                  limit: int) -> list[dict]:
+def _fetch_charts(session: requests.Session, base_url: str, limit: int) -> list[dict]:
     """List dashboards and extract SQL from each chart."""
-    data = _api_get(session, base_url, "/dashboard/",
-                    params={"page_size": 200})
+    data = _api_get(session, base_url, "/dashboard/", params={"page_size": 200})
     if not data:
         return []
 
@@ -116,7 +117,12 @@ def _fetch_charts(session: requests.Session, base_url: str,
             sql = ""
             try:
                 import json
-                form_data = json.loads(params_raw) if isinstance(params_raw, str) else params_raw
+
+                form_data = (
+                    json.loads(params_raw)
+                    if isinstance(params_raw, str)
+                    else params_raw
+                )
                 sql = form_data.get("sql", "") or form_data.get("query", "")
             except Exception:
                 pass
@@ -127,6 +133,7 @@ def _fetch_charts(session: requests.Session, base_url: str,
                 if isinstance(query_ctx, str):
                     try:
                         import json
+
                         query_ctx = json.loads(query_ctx)
                     except Exception:
                         query_ctx = {}
@@ -135,17 +142,23 @@ def _fetch_charts(session: requests.Session, base_url: str,
             if not sql or len(sql) < 50:
                 continue
 
-            charts.append({
-                "dashboard_id": dash_id,
-                "dashboard_title": dash_title,
-                "element_id": chart_id,
-                "element_title": chart_name,
-                "sql": sql,
-            })
+            charts.append(
+                {
+                    "dashboard_id": dash_id,
+                    "dashboard_title": dash_title,
+                    "element_id": chart_id,
+                    "element_title": chart_name,
+                    "sql": sql,
+                }
+            )
 
         if (idx + 1) % 10 == 0:
-            logger.info("  Processed %d/%d dashboards (%d charts)",
-                        idx + 1, len(dashboards), len(charts))
+            logger.info(
+                "  Processed %d/%d dashboards (%d charts)",
+                idx + 1,
+                len(dashboards),
+                len(charts),
+            )
 
     logger.info("Collected %d charts with SQL from Superset", len(charts))
     return charts

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import unicodedata
+from pathlib import Path
 from typing import Any, Coroutine, TypeVar
 
 T = TypeVar("T")
@@ -26,6 +27,16 @@ def slugify(text: str, fallback: str = "file", max_len: int = 80) -> str:
     return text[:max_len] or fallback
 
 
+def ensure_outputs_dir(root: Path | None = None) -> Path:
+    """Resolve the project root and return its outputs/ directory, creating it if needed."""
+    from dante.config import _find_project_root
+
+    root = root or _find_project_root()
+    outputs_dir = root / "outputs"
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    return outputs_dir
+
+
 def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """Run a coroutine from synchronous code.
 
@@ -39,6 +50,7 @@ def run_async(coro: Coroutine[Any, Any, T]) -> T:
 
     if loop and loop.is_running():
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor() as pool:
             return pool.submit(asyncio.run, coro).result()
 

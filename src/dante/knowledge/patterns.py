@@ -49,7 +49,7 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
         return {}, content
 
     fm_raw = content[3:end].strip()
-    body = content[end + 3:].strip()
+    body = content[end + 3 :].strip()
     fm = yaml.safe_load(fm_raw) or {}
     return fm, body
 

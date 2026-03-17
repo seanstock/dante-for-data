@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from dante.query import sql_markdown, tables_markdown, describe_markdown, profile_markdown
+from dante.query import (
+    sql_markdown,
+    tables_markdown,
+    describe_markdown,
+    profile_markdown,
+)
 
 
 def dante_sql(query: str, limit: int = 5000) -> str:

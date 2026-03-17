@@ -118,7 +118,9 @@ def get_default_connection_name(root: Path | None = None) -> str | None:
     return cfg.get("default_connection")
 
 
-def get_connection_config(name: str | None = None, root: Path | None = None) -> dict | None:
+def get_connection_config(
+    name: str | None = None, root: Path | None = None
+) -> dict | None:
     """Resolve a connection config by name.
 
     If name is None, uses the project's default_connection.

@@ -7,18 +7,41 @@ embedding generation, anchored with dashboard context.
 import re
 
 _AGGREGATION_WORDS = {
-    "total", "count", "number", "avg", "average", "sum",
-    "min", "max", "mean", "median",
+    "total",
+    "count",
+    "number",
+    "avg",
+    "average",
+    "sum",
+    "min",
+    "max",
+    "mean",
+    "median",
 }
 
 _VERB_WORDS = {
-    "show", "list", "display", "compare", "breakdown",
-    "analyze", "track", "find", "view", "explore",
+    "show",
+    "list",
+    "display",
+    "compare",
+    "breakdown",
+    "analyze",
+    "track",
+    "find",
+    "view",
+    "explore",
 }
 
 _TIME_WORDS = {
-    "daily", "weekly", "monthly", "yearly", "annual",
-    "quarterly", "ytd", "mtd", "wtd",
+    "daily",
+    "weekly",
+    "monthly",
+    "yearly",
+    "annual",
+    "quarterly",
+    "ytd",
+    "mtd",
+    "wtd",
 }
 
 _RATE_PATTERNS = {"rate", "ratio", "percent", "pct", "proportion"}

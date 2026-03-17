@@ -55,7 +55,9 @@ def _build_url(conn: dict) -> str:
     return url
 
 
-def connect(url: str | None = None, name: str | None = None, root: Path | None = None) -> Engine:
+def connect(
+    url: str | None = None, name: str | None = None, root: Path | None = None
+) -> Engine:
     """Get or create a SQLAlchemy engine.
 
     Args:

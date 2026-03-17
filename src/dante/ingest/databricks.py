@@ -37,8 +37,9 @@ def _get_credentials() -> dict | None:
     return creds
 
 
-def _api_get(session: requests.Session, base_url: str, path: str,
-             params: dict | None = None) -> dict | None:
+def _api_get(
+    session: requests.Session, base_url: str, path: str, params: dict | None = None
+) -> dict | None:
     try:
         resp = session.get(
             f"{base_url}/api/2.0{path}",
@@ -52,8 +53,9 @@ def _api_get(session: requests.Session, base_url: str, path: str,
         return None
 
 
-def _parse_dashboard_charts(dash_id: str, dash_name: str,
-                            serialized: str) -> list[dict]:
+def _parse_dashboard_charts(
+    dash_id: str, dash_name: str, serialized: str
+) -> list[dict]:
     """Parse a serialized dashboard definition into chart records."""
     try:
         definition = json.loads(serialized)
@@ -65,7 +67,9 @@ def _parse_dashboard_charts(dash_id: str, dash_name: str,
     for ds in definition.get("datasets", []):
         name = ds.get("name") or ds.get("displayName", "")
         lines = ds.get("queryLines", [])
-        sql = "\n".join(l.rstrip() for l in lines) if lines else ds.get("query", "")
+        sql = (
+            "\n".join(line.rstrip() for line in lines) if lines else ds.get("query", "")
+        )
         if name and sql and len(sql) > 20:
             dataset_sql[name] = sql
 
@@ -100,22 +104,24 @@ def _parse_dashboard_charts(dash_id: str, dash_name: str,
                 sql = next(iter(dataset_sql.values()))
 
             if sql and len(sql) > 20:
-                charts.append({
-                    "dashboard_id": dash_id,
-                    "dashboard_title": dash_name,
-                    "element_id": widget.get("name", title),
-                    "element_title": title,
-                    "sql": sql,
-                })
+                charts.append(
+                    {
+                        "dashboard_id": dash_id,
+                        "dashboard_title": dash_name,
+                        "element_id": widget.get("name", title),
+                        "element_title": title,
+                        "sql": sql,
+                    }
+                )
 
     return charts
 
 
-def _fetch_charts(session: requests.Session, base_url: str,
-                  limit: int) -> list[dict]:
+def _fetch_charts(session: requests.Session, base_url: str, limit: int) -> list[dict]:
     """List dashboards and extract SQL from each."""
-    data = _api_get(session, base_url, "/lakeview/dashboards",
-                    params={"page_size": 200})
+    data = _api_get(
+        session, base_url, "/lakeview/dashboards", params={"page_size": 200}
+    )
     if not data:
         return []
 
@@ -132,8 +138,7 @@ def _fetch_charts(session: requests.Session, base_url: str,
         if not dash_id:
             continue
 
-        detail = _api_get(session, base_url,
-                          f"/lakeview/dashboards/{dash_id}")
+        detail = _api_get(session, base_url, f"/lakeview/dashboards/{dash_id}")
         if not detail:
             continue
 
@@ -146,8 +151,12 @@ def _fetch_charts(session: requests.Session, base_url: str,
             charts.extend(new_charts)
 
         if (idx + 1) % 10 == 0:
-            logger.info("  Processed %d/%d dashboards (%d charts)",
-                        idx + 1, len(dashboards), len(charts))
+            logger.info(
+                "  Processed %d/%d dashboards (%d charts)",
+                idx + 1,
+                len(dashboards),
+                len(charts),
+            )
 
     logger.info("Collected %d charts with SQL from Databricks", len(charts))
     return charts
@@ -197,7 +206,7 @@ async def ingest_databricks(config: IngestionConfig) -> IngestionResult:
         try:
             question = generate_question(title, chart["dashboard_title"])
             simplified = await simplify_sql(chart["sql"], title)
-            simplified = re.sub(r'\n{2,}', '\n', simplified)
+            simplified = re.sub(r"\n{2,}", "\n", simplified)
             embed_text = f"Question: {question}\nSQL Pattern:\n{simplified[:2000]}"
             vector = await generate_embedding(embed_text)
 

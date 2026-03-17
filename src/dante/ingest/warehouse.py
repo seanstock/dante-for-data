@@ -50,7 +50,9 @@ async def ingest_warehouse(config: IngestionConfig) -> IngestionResult:
                 col_descriptions = []
                 for col in columns:
                     nullable = "nullable" if col.get("nullable", True) else "not null"
-                    col_descriptions.append(f"  - {col['name']} ({col['type']}, {nullable})")
+                    col_descriptions.append(
+                        f"  - {col['name']} ({col['type']}, {nullable})"
+                    )
 
                 col_text = "\n".join(col_descriptions)
                 question = f"What data is in the {table_name} table?"
@@ -59,7 +61,11 @@ async def ingest_warehouse(config: IngestionConfig) -> IngestionResult:
                 emb_id = _compute_id(table_name)
 
                 if config.dry_run:
-                    logger.info("Would ingest schema for table: %s (%d columns)", table_name, len(columns))
+                    logger.info(
+                        "Would ingest schema for table: %s (%d columns)",
+                        table_name,
+                        len(columns),
+                    )
                     result.skipped += 1
                     continue
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 import threading
 
 # In-memory registry of active apps (app_id → App instance)
-_apps: dict[str, "dante.app.App"] = {}
+from dante.app import App
+
+_apps: dict[str, App] = {}
 _apps_lock = threading.Lock()
 
 
@@ -20,8 +22,6 @@ def dante_app_create(title: str, template: str = "dashboard") -> str:
     Returns:
         App ID, available CSS classes, and instructions.
     """
-    from dante.app import App
-
     app = App(title=title, template=template)
     with _apps_lock:
         _apps[app.id] = app

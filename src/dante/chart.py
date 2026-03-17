@@ -8,21 +8,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 
-from dante._utils import slugify
-from dante.config import _find_project_root
+from dante._utils import ensure_outputs_dir, slugify
 
 _DARK_TEMPLATE = "plotly_dark"
 _LIGHT_TEMPLATE = "plotly_white"
-
-_KIND_MAP = {
-    "bar": "bar",
-    "line": "line",
-    "scatter": "scatter",
-    "pie": "pie",
-    "heatmap": "density_heatmap",
-    "histogram": "histogram",
-    "box": "box",
-}
 
 
 def chart(
@@ -52,9 +41,8 @@ def chart(
     Returns:
         Path to the generated file.
     """
-    root = root or _find_project_root()
-    outputs_dir = root / "outputs"
-    outputs_dir.mkdir(parents=True, exist_ok=True)
+    outputs_dir = ensure_outputs_dir(root)
+    root = outputs_dir.parent
 
     template = _DARK_TEMPLATE if theme == "dark" else _LIGHT_TEMPLATE
 
@@ -67,7 +55,9 @@ def chart(
     elif isinstance(data, pd.DataFrame):
         fig = _df_to_figure(data, x=x, y=y, kind=kind, title=title, template=template)
     else:
-        raise TypeError(f"data must be a DataFrame or Plotly spec dict, got {type(data)}")
+        raise TypeError(
+            f"data must be a DataFrame or Plotly spec dict, got {type(data)}"
+        )
 
     # Determine output path
     if filename is None:
@@ -88,6 +78,19 @@ def chart(
     return str(out_path)
 
 
+def figure_to_inline_html(fig: go.Figure, div_id: str = "chart") -> str:
+    """Convert a Plotly figure to inline HTML (div + script) without writing a file.
+
+    Assumes Plotly.js is already loaded in the page (e.g. via CDN).
+    """
+    return fig.to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        div_id=div_id,
+        config={"responsive": True},
+    )
+
+
 def _df_to_figure(
     df: pd.DataFrame,
     x: str | None,
@@ -98,33 +101,32 @@ def _df_to_figure(
 ) -> go.Figure:
     """Create a Plotly figure from a DataFrame."""
     if kind == "pie":
-        fig = px.pie(df, names=x, values=y if isinstance(y, str) else (y[0] if y else None), title=title)
+        fig = px.pie(
+            df,
+            names=x,
+            values=y if isinstance(y, str) else (y[0] if y else None),
+            title=title,
+        )
     elif kind == "histogram":
         fig = px.histogram(df, x=x, title=title)
     elif kind == "box":
-        fig = px.box(df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title)
+        fig = px.box(
+            df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title
+        )
     elif kind == "heatmap":
-        fig = px.density_heatmap(df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title)
+        fig = px.density_heatmap(
+            df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title
+        )
     elif kind == "scatter":
-        fig = px.scatter(df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title)
+        fig = px.scatter(
+            df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title
+        )
     elif kind == "line":
-        if isinstance(y, list):
-            fig = go.Figure()
-            for col in y:
-                fig.add_trace(go.Scatter(x=df[x], y=df[col], mode="lines", name=col))
-            if title:
-                fig.update_layout(title=title)
-        else:
-            fig = px.line(df, x=x, y=y, title=title)
+        fig = px.line(df, x=x, y=y, title=title)
     else:  # bar
+        fig = px.bar(df, x=x, y=y, title=title)
         if isinstance(y, list):
-            fig = go.Figure()
-            for col in y:
-                fig.add_trace(go.Bar(x=df[x], y=df[col], name=col))
-            if title:
-                fig.update_layout(title=title, barmode="group")
-        else:
-            fig = px.bar(df, x=x, y=y, title=title)
+            fig.update_layout(barmode="group")
 
     fig.update_layout(template=template)
     return fig

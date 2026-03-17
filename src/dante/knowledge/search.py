@@ -62,20 +62,24 @@ async def search_async(
             query_vec = await vectorize.generate_embedding(query)
             conn = emb_module.init_db(db_path)
             try:
-                emb_results = emb_module.search(conn, query_vec, top_k=top_k, threshold=threshold)
+                emb_results = emb_module.search(
+                    conn, query_vec, top_k=top_k, threshold=threshold
+                )
                 for r in emb_results:
                     entry_id = f"emb:{r['id']}"
                     if entry_id not in seen_ids:
                         seen_ids.add(entry_id)
-                        results.append({
-                            "question": r.get("question", ""),
-                            "sql": r.get("sql", ""),
-                            "source": r.get("source", ""),
-                            "dashboard": r.get("dashboard", ""),
-                            "description": r.get("description", ""),
-                            "similarity": r.get("similarity", 0.0),
-                            "keyword_match": None,
-                        })
+                        results.append(
+                            {
+                                "question": r.get("question", ""),
+                                "sql": r.get("sql", ""),
+                                "source": r.get("source", ""),
+                                "dashboard": r.get("dashboard", ""),
+                                "description": r.get("description", ""),
+                                "similarity": r.get("similarity", 0.0),
+                                "keyword_match": None,
+                            }
+                        )
             finally:
                 conn.close()
         except RuntimeError as e:

@@ -150,9 +150,7 @@ def stats(conn: sqlite3.Connection) -> dict:
     by_source = {row["source"]: row["cnt"] for row in rows}
     total = sum(by_source.values())
 
-    last_row = conn.execute(
-        "SELECT MAX(updated_at) as last FROM embeddings"
-    ).fetchone()
+    last_row = conn.execute("SELECT MAX(updated_at) as last FROM embeddings").fetchone()
     last_updated = last_row["last"] if last_row else None
 
     return {

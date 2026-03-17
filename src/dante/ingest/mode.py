@@ -49,14 +49,15 @@ def _api_get(session: requests.Session, path: str) -> dict | list | None:
         return None
 
 
-def _fetch_charts(session: requests.Session, workspace: str,
-                  limit: int) -> list[dict]:
+def _fetch_charts(session: requests.Session, workspace: str, limit: int) -> list[dict]:
     """List reports and extract query SQL from each."""
     data = _api_get(session, f"/{workspace}/reports")
     if not data:
         return []
 
-    reports = data if isinstance(data, list) else data.get("_embedded", {}).get("reports", [])
+    reports = (
+        data if isinstance(data, list) else data.get("_embedded", {}).get("reports", [])
+    )
     if limit > 0:
         reports = reports[:limit]
 
@@ -71,8 +72,11 @@ def _fetch_charts(session: requests.Session, workspace: str,
         if not queries_data:
             continue
 
-        queries = (queries_data if isinstance(queries_data, list)
-                   else queries_data.get("_embedded", {}).get("queries", []))
+        queries = (
+            queries_data
+            if isinstance(queries_data, list)
+            else queries_data.get("_embedded", {}).get("queries", [])
+        )
 
         for q in queries:
             sql = q.get("raw_query", "")
@@ -82,17 +86,23 @@ def _fetch_charts(session: requests.Session, workspace: str,
             if not sql or len(sql) < 50 or not q_name:
                 continue
 
-            charts.append({
-                "dashboard_id": token,
-                "dashboard_title": report_name,
-                "element_id": q_token,
-                "element_title": q_name,
-                "sql": sql,
-            })
+            charts.append(
+                {
+                    "dashboard_id": token,
+                    "dashboard_title": report_name,
+                    "element_id": q_token,
+                    "element_title": q_name,
+                    "sql": sql,
+                }
+            )
 
         if (idx + 1) % 10 == 0:
-            logger.info("  Processed %d/%d reports (%d queries)",
-                        idx + 1, len(reports), len(charts))
+            logger.info(
+                "  Processed %d/%d reports (%d queries)",
+                idx + 1,
+                len(reports),
+                len(charts),
+            )
 
     logger.info("Collected %d queries with SQL from Mode", len(charts))
     return charts

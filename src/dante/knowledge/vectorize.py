@@ -26,6 +26,7 @@ def _get_client() -> AsyncOpenAI:
         # Fall back to stored credentials
         try:
             from dante.config import load_global_credentials
+
             creds = load_global_credentials()
             api_key = creds.get("openai", {}).get("api_key", "")
         except Exception as e:

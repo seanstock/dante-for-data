@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-import pytest
 
 from dante.scaffold import scaffold_project, scaffold_in_place
 
@@ -11,6 +10,7 @@ from dante.scaffold import scaffold_project, scaffold_in_place
 # ---------------------------------------------------------------------------
 # scaffold_project
 # ---------------------------------------------------------------------------
+
 
 def test_scaffold_project_creates_directory(tmp_path):
     project = scaffold_project("myproject", root=tmp_path)
@@ -144,6 +144,7 @@ def test_scaffold_project_returns_path(tmp_path):
 # ---------------------------------------------------------------------------
 # scaffold_in_place
 # ---------------------------------------------------------------------------
+
 
 def test_scaffold_in_place_returns_root(tmp_path):
     result = scaffold_in_place(root=tmp_path)

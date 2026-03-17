@@ -89,17 +89,23 @@ def _fetch_charts(base_url: str, api_key: str, limit: int) -> list[dict]:
                 continue
             seen_queries.add(q_id)
 
-            charts.append({
-                "dashboard_id": slug,
-                "dashboard_title": dash_name,
-                "element_id": q_id,
-                "element_title": q_name,
-                "sql": sql,
-            })
+            charts.append(
+                {
+                    "dashboard_id": slug,
+                    "dashboard_title": dash_name,
+                    "element_id": q_id,
+                    "element_title": q_name,
+                    "sql": sql,
+                }
+            )
 
         if (idx + 1) % 10 == 0:
-            logger.info("  Processed %d/%d dashboards (%d queries)",
-                        idx + 1, len(dashboards), len(charts))
+            logger.info(
+                "  Processed %d/%d dashboards (%d queries)",
+                idx + 1,
+                len(dashboards),
+                len(charts),
+            )
 
     logger.info("Collected %d queries with SQL from Redash", len(charts))
     return charts

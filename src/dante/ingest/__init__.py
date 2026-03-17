@@ -29,18 +29,22 @@ _ALL_SOURCES = _CORE_SOURCES | _EXPERIMENTAL_SOURCES
 @dataclass
 class IngestionConfig:
     """Configuration for an ingestion run."""
+
     sources: list[str] = field(default_factory=lambda: ["all"])
     min_views: int = 10
     lookback_days: int = 90
     dashboard_limit: int = 0  # 0 = unlimited
     skip_existing: bool = False
     dry_run: bool = False
-    progress_callback: Optional[Callable[[str, int, int], None]] = field(default=None, repr=False)
+    progress_callback: Optional[Callable[[str, int, int], None]] = field(
+        default=None, repr=False
+    )
 
 
 @dataclass
 class IngestionResult:
     """Results from an ingestion run."""
+
     created: int = 0
     updated: int = 0
     skipped: int = 0
@@ -73,36 +77,43 @@ async def run(config: IngestionConfig) -> IngestionResult:
     for source in sources:
         if source == "looker":
             from dante.ingest.looker import ingest_looker
+
             r = await ingest_looker(config)
             _merge_results(result, r)
 
         elif source == "databricks":
             from dante.ingest.databricks import ingest_databricks
+
             r = await ingest_databricks(config)
             _merge_results(result, r)
 
         elif source == "warehouse":
             from dante.ingest.warehouse import ingest_warehouse
+
             r = await ingest_warehouse(config)
             _merge_results(result, r)
 
         elif source == "mode":
             from dante.ingest.mode import ingest_mode
+
             r = await ingest_mode(config)
             _merge_results(result, r)
 
         elif source == "redash":
             from dante.ingest.redash import ingest_redash
+
             r = await ingest_redash(config)
             _merge_results(result, r)
 
         elif source == "sigma":
             from dante.ingest.sigma import ingest_sigma
+
             r = await ingest_sigma(config)
             _merge_results(result, r)
 
         elif source == "superset":
             from dante.ingest.superset import ingest_superset
+
             r = await ingest_superset(config)
             _merge_results(result, r)
 
@@ -110,7 +121,11 @@ async def run(config: IngestionConfig) -> IngestionResult:
             # Source is registered but has no dispatch branch — shouldn't happen
             logger.error("Source %r is registered but has no dispatch handler", source)
         else:
-            logger.warning("Unknown ingestion source %r. Valid sources: %s", source, sorted(_ALL_SOURCES))
+            logger.warning(
+                "Unknown ingestion source %r. Valid sources: %s",
+                source,
+                sorted(_ALL_SOURCES),
+            )
 
     return result
 

@@ -29,7 +29,11 @@ def _get_credentials() -> dict | None:
     from dante.config import load_global_credentials
 
     creds = load_global_credentials().get("sigma", {})
-    if not creds.get("host") or not creds.get("client_id") or not creds.get("client_secret"):
+    if (
+        not creds.get("host")
+        or not creds.get("client_id")
+        or not creds.get("client_secret")
+    ):
         return None
     return creds
 
@@ -91,8 +95,11 @@ def _fetch_charts(host: str, token: str, limit: int) -> list[dict]:
         if not elements_data:
             continue
 
-        elements = (elements_data.get("entries", elements_data)
-                    if isinstance(elements_data, dict) else elements_data)
+        elements = (
+            elements_data.get("entries", elements_data)
+            if isinstance(elements_data, dict)
+            else elements_data
+        )
 
         for elem in elements:
             elem_id = elem.get("elementId", "")
@@ -102,7 +109,8 @@ def _fetch_charts(host: str, token: str, limit: int) -> list[dict]:
 
             # Fetch the SQL for this specific element
             query_data = _api_get(
-                host, token,
+                host,
+                token,
                 f"/workbooks/{wb_id}/elements/{elem_id}/query",
             )
             if not query_data:
@@ -112,17 +120,23 @@ def _fetch_charts(host: str, token: str, limit: int) -> list[dict]:
             if not sql or len(sql) < 50:
                 continue
 
-            charts.append({
-                "dashboard_id": wb_id,
-                "dashboard_title": wb_name,
-                "element_id": elem_id,
-                "element_title": elem_name,
-                "sql": sql,
-            })
+            charts.append(
+                {
+                    "dashboard_id": wb_id,
+                    "dashboard_title": wb_name,
+                    "element_id": elem_id,
+                    "element_title": elem_name,
+                    "sql": sql,
+                }
+            )
 
         if (idx + 1) % 10 == 0:
-            logger.info("  Processed %d/%d workbooks (%d elements)",
-                        idx + 1, len(workbooks), len(charts))
+            logger.info(
+                "  Processed %d/%d workbooks (%d elements)",
+                idx + 1,
+                len(workbooks),
+                len(charts),
+            )
 
     logger.info("Collected %d elements with SQL from Sigma", len(charts))
     return charts

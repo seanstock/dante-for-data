@@ -300,11 +300,17 @@ def scaffold_project(name: str, root: Path | None = None, cursor: bool = False) 
     # .dante/
     dante_dir = project / ".dante"
     dante_dir.mkdir(exist_ok=True)
-    _write_if_not_exists(dante_dir / "config.yaml", "# default_connection: my-connection\n")
+    _write_if_not_exists(
+        dante_dir / "config.yaml", "# default_connection: my-connection\n"
+    )
 
     # Seed global rules.yaml
     from dante.config import knowledge_dir as global_knowledge_dir
-    _write_if_not_exists(global_knowledge_dir() / "rules.yaml", "# Global rules — add brand colors, coding preferences, conventions here\n# design_system: \"Use dark mode with #111111 background.\"\n")
+
+    _write_if_not_exists(
+        global_knowledge_dir() / "rules.yaml",
+        '# Global rules — add brand colors, coding preferences, conventions here\n# design_system: "Use dark mode with #111111 background."\n',
+    )
 
     if cursor:
         _write_if_not_exists(project / ".cursorrules", _CURSORRULES)
@@ -314,9 +320,18 @@ def scaffold_project(name: str, root: Path | None = None, cursor: bool = False) 
         knowledge_dir = dante_dir / "knowledge"
         knowledge_dir.mkdir(exist_ok=True)
         (knowledge_dir / "patterns").mkdir(exist_ok=True)
-        _write_if_not_exists(knowledge_dir / "terms.yaml", "# Business glossary — add terms here\n# ARR: \"Annual Recurring Revenue. MRR * 12.\"\n")
-        _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers — add keywords here\n# revenue: \"Revenue = SUM(amount) from orders table.\"\n")
-        _write_if_not_exists(knowledge_dir / "notes.yaml", "# Project notes — add project-specific context here\n# data_overview: \"Description of the dataset.\"\n")
+        _write_if_not_exists(
+            knowledge_dir / "terms.yaml",
+            '# Business glossary — add terms here\n# ARR: "Annual Recurring Revenue. MRR * 12."\n',
+        )
+        _write_if_not_exists(
+            knowledge_dir / "keywords.yaml",
+            '# Keyword triggers — add keywords here\n# revenue: "Revenue = SUM(amount) from orders table."\n',
+        )
+        _write_if_not_exists(
+            knowledge_dir / "notes.yaml",
+            '# Project notes — add project-specific context here\n# data_overview: "Description of the dataset."\n',
+        )
 
         # .claude/skills/
         skills_dir = project / ".claude" / "skills"
@@ -330,7 +345,9 @@ def scaffold_project(name: str, root: Path | None = None, cursor: bool = False) 
     # Root files
     _write_if_not_exists(project / ".mcp.json", json.dumps(_MCP_JSON, indent=2) + "\n")
     _write_if_not_exists(project / ".gitignore", _GITIGNORE)
-    _write_if_not_exists(project / "README.md", f"# {name}\n\nA dante-lib data science project.\n")
+    _write_if_not_exists(
+        project / "README.md", f"# {name}\n\nA dante-lib data science project.\n"
+    )
 
     return project
 
@@ -346,11 +363,17 @@ def scaffold_in_place(root: Path | None = None, cursor: bool = False) -> Path:
 
     dante_dir = root / ".dante"
     dante_dir.mkdir(exist_ok=True)
-    _write_if_not_exists(dante_dir / "config.yaml", "# default_connection: my-connection\n")
+    _write_if_not_exists(
+        dante_dir / "config.yaml", "# default_connection: my-connection\n"
+    )
 
     # Seed global rules.yaml
     from dante.config import knowledge_dir as global_knowledge_dir
-    _write_if_not_exists(global_knowledge_dir() / "rules.yaml", "# Global rules — add brand colors, coding preferences, conventions here\n# design_system: \"Use dark mode with #111111 background.\"\n")
+
+    _write_if_not_exists(
+        global_knowledge_dir() / "rules.yaml",
+        '# Global rules — add brand colors, coding preferences, conventions here\n# design_system: "Use dark mode with #111111 background."\n',
+    )
 
     if cursor:
         _write_if_not_exists(root / ".cursorrules", _CURSORRULES)
@@ -362,7 +385,10 @@ def scaffold_in_place(root: Path | None = None, cursor: bool = False) -> Path:
         (knowledge_dir / "patterns").mkdir(exist_ok=True)
         _write_if_not_exists(knowledge_dir / "terms.yaml", "# Business glossary\n")
         _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers\n")
-        _write_if_not_exists(knowledge_dir / "notes.yaml", "# Project notes — add project-specific context here\n# data_overview: \"Description of the dataset.\"\n")
+        _write_if_not_exists(
+            knowledge_dir / "notes.yaml",
+            '# Project notes — add project-specific context here\n# data_overview: "Description of the dataset."\n',
+        )
 
         skills_dir = root / ".claude" / "skills"
         _write_skill(skills_dir / "query", _QUERY_SKILL)
@@ -386,18 +412,27 @@ def _write_cursor_rules(project: Path) -> None:
     rules_dir.mkdir(parents=True, exist_ok=True)
 
     # Skill .mdc files
-    _write_if_not_exists(rules_dir / "dante-query.mdc", _mdc(
-        "Query exploration workflow — use when the user wants to explore data or run SQL",
-        _QUERY_SKILL.split("---", 2)[-1].strip(),  # strip YAML frontmatter
-    ))
-    _write_if_not_exists(rules_dir / "dante-dashboard.mdc", _mdc(
-        "Dashboard building workflow — use when the user wants to create a dashboard",
-        _DASHBOARD_SKILL.split("---", 2)[-1].strip(),
-    ))
-    _write_if_not_exists(rules_dir / "dante-analyze.mdc", _mdc(
-        "Multi-step analysis workflow — use when the user wants a structured analysis",
-        _ANALYZE_SKILL.split("---", 2)[-1].strip(),
-    ))
+    _write_if_not_exists(
+        rules_dir / "dante-query.mdc",
+        _mdc(
+            "Query exploration workflow — use when the user wants to explore data or run SQL",
+            _QUERY_SKILL.split("---", 2)[-1].strip(),  # strip YAML frontmatter
+        ),
+    )
+    _write_if_not_exists(
+        rules_dir / "dante-dashboard.mdc",
+        _mdc(
+            "Dashboard building workflow — use when the user wants to create a dashboard",
+            _DASHBOARD_SKILL.split("---", 2)[-1].strip(),
+        ),
+    )
+    _write_if_not_exists(
+        rules_dir / "dante-analyze.mdc",
+        _mdc(
+            "Multi-step analysis workflow — use when the user wants a structured analysis",
+            _ANALYZE_SKILL.split("---", 2)[-1].strip(),
+        ),
+    )
 
     # Sync global knowledge into .mdc
     gk = global_knowledge_dir()
@@ -408,10 +443,13 @@ def _write_cursor_rules(project: Path) -> None:
     if rules_path.exists():
         rules_content = rules_path.read_text(encoding="utf-8")
     if rules_content.strip():
-        _write_mdc(rules_dir / "project-rules.mdc", _mdc(
-            "Global project rules — brand colors, coding preferences, conventions",
-            "```yaml\n" + rules_content + "\n```",
-        ))
+        _write_mdc(
+            rules_dir / "project-rules.mdc",
+            _mdc(
+                "Global project rules — brand colors, coding preferences, conventions",
+                "```yaml\n" + rules_content + "\n```",
+            ),
+        )
 
     # Knowledge: terms + project notes
     knowledge_parts = []
@@ -419,24 +457,31 @@ def _write_cursor_rules(project: Path) -> None:
     if terms_path.exists():
         terms_content = terms_path.read_text(encoding="utf-8")
         if terms_content.strip():
-            knowledge_parts.append("## Business Glossary\n\n```yaml\n" + terms_content + "\n```")
+            knowledge_parts.append(
+                "## Business Glossary\n\n```yaml\n" + terms_content + "\n```"
+            )
 
     notes_path = project / ".dante" / "knowledge" / "notes.yaml"
     if notes_path.exists():
         notes_content = notes_path.read_text(encoding="utf-8")
         if notes_content.strip():
-            knowledge_parts.append("## Project Notes\n\n```yaml\n" + notes_content + "\n```")
+            knowledge_parts.append(
+                "## Project Notes\n\n```yaml\n" + notes_content + "\n```"
+            )
 
     if knowledge_parts:
-        _write_mdc(rules_dir / "knowledge.mdc", _mdc(
-            "Project knowledge — business terms, glossary, and project-specific notes",
-            "\n\n".join(knowledge_parts),
-        ))
+        _write_mdc(
+            rules_dir / "knowledge.mdc",
+            _mdc(
+                "Project knowledge — business terms, glossary, and project-specific notes",
+                "\n\n".join(knowledge_parts),
+            ),
+        )
 
 
 def _mdc(description: str, content: str) -> str:
     """Format content as a .mdc file with frontmatter."""
-    return f"---\ndescription: \"{description}\"\nalwaysApply: true\n---\n\n{content}\n"
+    return f'---\ndescription: "{description}"\nalwaysApply: true\n---\n\n{content}\n'
 
 
 def _write_mdc(path: Path, content: str) -> None:

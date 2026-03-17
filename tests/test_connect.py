@@ -1,9 +1,9 @@
 """Tests for dante.connect — database connection management."""
 
 import pytest
-from pathlib import Path
 
 from dante.connect import _build_url, connect
+
 # Alias to avoid pytest treating this as a test fixture (name starts with test_)
 from dante.connect import test_connection as check_connection
 
@@ -11,6 +11,7 @@ from dante.connect import test_connection as check_connection
 # ---------------------------------------------------------------------------
 # _build_url
 # ---------------------------------------------------------------------------
+
 
 def test_build_url_postgresql():
     conn = {
@@ -50,7 +51,13 @@ def test_build_url_sqlite():
 
 
 def test_build_url_no_port():
-    conn = {"dialect": "postgresql", "user": "u", "password": "p", "host": "h", "database": "d"}
+    conn = {
+        "dialect": "postgresql",
+        "user": "u",
+        "password": "p",
+        "host": "h",
+        "database": "d",
+    }
     url = _build_url(conn)
     assert ":5432" not in url
 
@@ -135,12 +142,14 @@ def test_build_url_special_chars_in_password():
 # connect()
 # ---------------------------------------------------------------------------
 
+
 def test_connect_with_sqlite_url():
     """SQLite in-memory DB can be connected to directly by URL."""
     engine = connect(url="sqlite:///:memory:")
     assert engine is not None
     # Test we can actually query it
     from sqlalchemy import text
+
     with engine.connect() as conn:
         result = conn.execute(text("SELECT 1")).fetchone()
         assert result[0] == 1
@@ -164,6 +173,7 @@ def test_connect_no_config_raises(tmp_path):
 # check_connection()
 # ---------------------------------------------------------------------------
 
+
 def test_check_connection_success():
     success, msg = check_connection({"url": "sqlite:///:memory:"})
     assert success is True
@@ -171,13 +181,15 @@ def test_check_connection_success():
 
 
 def test_check_connection_failure():
-    success, msg = check_connection({
-        "dialect": "postgresql",
-        "host": "localhost",
-        "port": "9999",
-        "database": "nonexistent",
-        "user": "baduser",
-        "password": "badpass",
-    })
+    success, msg = check_connection(
+        {
+            "dialect": "postgresql",
+            "host": "localhost",
+            "port": "9999",
+            "database": "nonexistent",
+            "user": "baduser",
+            "password": "badpass",
+        }
+    )
     assert success is False
     assert msg  # some error message

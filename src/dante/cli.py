@@ -16,9 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import sys
 import webbrowser
-from pathlib import Path
 
 import click
 
@@ -34,7 +32,11 @@ def main():
 @main.command()
 @click.argument("name", required=False)
 @click.option("--ui", is_flag=True, help="Open the management UI after scaffolding")
-@click.option("--cursor", is_flag=True, help="Generate .cursorrules instead of CLAUDE.md and skills (for Cursor IDE)")
+@click.option(
+    "--cursor",
+    is_flag=True,
+    help="Generate .cursorrules instead of CLAUDE.md and skills (for Cursor IDE)",
+)
 def launch(name: str | None, ui: bool, cursor: bool):
     """Scaffold a new data science project."""
     from dante.scaffold import scaffold_project, scaffold_in_place
@@ -49,15 +51,17 @@ def launch(name: str | None, ui: bool, cursor: bool):
     click.echo()
     click.echo("Project structure:")
     if cursor:
-        click.echo(f"  .mcp.json           — MCP server config")
-        click.echo(f"  .cursorrules        — Tool reference and workflows for Cursor")
+        click.echo("  .mcp.json           — MCP server config")
+        click.echo("  .cursorrules        — Tool reference and workflows for Cursor")
     else:
-        click.echo(f"  .mcp.json           — Claude Code MCP config")
-        click.echo(f"  .claude/skills/     — Slash commands (/query, /dashboard, /analyze, ...)")
-        click.echo(f"  CLAUDE.md           — Tool reference for Claude")
-    click.echo(f"  .dante/             — Config, knowledge, embeddings")
-    click.echo(f"  analysis/           — Analysis scripts")
-    click.echo(f"  outputs/            — Generated charts, dashboards, reports")
+        click.echo("  .mcp.json           — Claude Code MCP config")
+        click.echo(
+            "  .claude/skills/     — Slash commands (/query, /dashboard, /analyze, ...)"
+        )
+        click.echo("  CLAUDE.md           — Tool reference for Claude")
+    click.echo("  .dante/             — Config, knowledge, embeddings")
+    click.echo("  analysis/           — Analysis scripts")
+    click.echo("  outputs/            — Generated charts, dashboards, reports")
     click.echo()
 
     if ui:
@@ -84,14 +88,34 @@ def mcp():
 def serve():
     """Start the MCP server (stdio transport). Called by Claude Code via .mcp.json."""
     from dante.mcp_server import main as mcp_main
+
     asyncio.run(mcp_main())
 
 
 @main.command()
-@click.option("--source", type=click.Choice(["looker", "databricks", "warehouse", "mode", "redash", "sigma", "superset", "all"]), default="all")
+@click.option(
+    "--source",
+    type=click.Choice(
+        [
+            "looker",
+            "databricks",
+            "warehouse",
+            "mode",
+            "redash",
+            "sigma",
+            "superset",
+            "all",
+        ]
+    ),
+    default="all",
+)
 @click.option("--min-views", default=10, help="Looker: minimum dashboard views")
-@click.option("--lookback-days", default=90, help="Looker: only dashboards accessed within N days")
-@click.option("--dry-run", is_flag=True, help="Show what would be ingested without doing it")
+@click.option(
+    "--lookback-days", default=90, help="Looker: only dashboards accessed within N days"
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be ingested without doing it"
+)
 def ingest(source: str, min_views: int, lookback_days: int, dry_run: bool):
     """Ingest embeddings from BI platforms into the local index."""
     from dante.ingest import IngestionConfig, run as run_ingest
@@ -104,8 +128,10 @@ def ingest(source: str, min_views: int, lookback_days: int, dry_run: bool):
     )
     click.echo(f"Ingesting from {source}{'  (dry run)' if dry_run else ''}...")
     result = asyncio.run(run_ingest(config))
-    click.echo(f"Done: {result.created} created, {result.updated} updated, "
-               f"{result.skipped} skipped, {result.errors} errors")
+    click.echo(
+        f"Done: {result.created} created, {result.updated} updated, "
+        f"{result.skipped} skipped, {result.errors} errors"
+    )
 
 
 @main.command()
@@ -134,6 +160,7 @@ def status(as_json: bool):
     terms_file = knowledge_dir / "terms.yaml"
     if terms_file.exists():
         import yaml
+
         with open(terms_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         terms_count = len([k for k in data if not str(k).startswith("#")])
@@ -141,6 +168,7 @@ def status(as_json: bool):
     keywords_file = knowledge_dir / "keywords.yaml"
     if keywords_file.exists():
         import yaml
+
         with open(keywords_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         keywords_count = len([k for k in data if not str(k).startswith("#")])
@@ -154,6 +182,7 @@ def status(as_json: bool):
     embeddings_db = pd / "embeddings.db"
     if embeddings_db.exists():
         import sqlite3
+
         try:
             conn = sqlite3.connect(str(embeddings_db))
             cur = conn.execute("SELECT COUNT(*) FROM embeddings")
@@ -210,6 +239,7 @@ def status(as_json: bool):
 def open_artifact(name: str | None):
     """Open an artifact in the browser."""
     from dante.config import _find_project_root
+
     outputs = _find_project_root() / "outputs"
     if not outputs.exists():
         click.echo("No outputs/ directory found.")
@@ -237,6 +267,7 @@ def open_artifact(name: str | None):
 def _start_ui(port: int = 4040):
     """Start the dante UI server."""
     from dante.ui.server import run_server
+
     click.echo(f"Starting dante UI at http://localhost:{port}")
     click.echo("Press Ctrl+C to stop.")
     webbrowser.open(f"http://localhost:{port}")

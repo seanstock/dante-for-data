@@ -36,6 +36,7 @@ notes = notes_module
 patterns = patterns_module
 embeddings = emb_module
 
+
 def _db_path(root: Path | None = None) -> Path:
     return knowledge_dir(root) / "embeddings.db"
 
@@ -43,6 +44,7 @@ def _db_path(root: Path | None = None) -> Path:
 # ---------------------------------------------------------------------------
 # Unified search
 # ---------------------------------------------------------------------------
+
 
 def search(
     query: str,
@@ -74,6 +76,7 @@ async def search_async(
 # Patterns (SQL examples)
 # ---------------------------------------------------------------------------
 
+
 def save_pattern(
     question: str,
     sql: str,
@@ -90,8 +93,11 @@ def save_pattern(
     """
     # Save the file
     path = patterns_module.save_pattern(
-        question=question, sql=sql, tables=tables,
-        description=description, root=root,
+        question=question,
+        sql=sql,
+        tables=tables,
+        description=description,
+        root=root,
     )
     pattern = patterns_module.load_pattern(path)
 
@@ -109,6 +115,7 @@ def list_patterns(root: Path | None = None) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Glossary
 # ---------------------------------------------------------------------------
+
 
 def define(term: str, definition: str, root: Path | None = None) -> None:
     """Add or update a glossary term in terms.yaml."""
@@ -129,6 +136,7 @@ def list_terms(root: Path | None = None) -> list[dict[str, str]]:
 # Keywords
 # ---------------------------------------------------------------------------
 
+
 def add_keyword(keyword: str, content: str, root: Path | None = None) -> None:
     """Add or update a keyword trigger in keywords.yaml."""
     kw_module.add(keyword, content, root)
@@ -143,6 +151,7 @@ def remove_keyword(keyword: str, root: Path | None = None) -> bool:
 # Notes
 # ---------------------------------------------------------------------------
 
+
 def add_note(text: str, root: Path | None = None) -> None:
     """Append text to notes.md."""
     notes_module.append(text, root)
@@ -151,6 +160,7 @@ def add_note(text: str, root: Path | None = None) -> None:
 # ---------------------------------------------------------------------------
 # Stats & maintenance
 # ---------------------------------------------------------------------------
+
 
 def stats(root: Path | None = None) -> dict:
     """Return knowledge system statistics.
@@ -219,6 +229,7 @@ def rebuild(root: Path | None = None) -> dict:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _embed_pattern(pattern: dict, root: Path | None = None) -> None:
     """Generate an embedding for a pattern and store it in the database.

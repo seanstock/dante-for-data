@@ -1,8 +1,6 @@
 """Tests for dante.knowledge.keywords."""
 
-from pathlib import Path
 
-import pytest
 
 from dante.knowledge.keywords import add, load, save, remove, list_keywords, match
 
@@ -82,6 +80,7 @@ def test_list_keywords_structure(tmp_path):
 # ---------------------------------------------------------------------------
 # match()
 # ---------------------------------------------------------------------------
+
 
 def test_match_empty_index(tmp_path):
     assert match("what is revenue", root=tmp_path) == []

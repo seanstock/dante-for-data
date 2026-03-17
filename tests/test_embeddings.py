@@ -1,8 +1,5 @@
 """Tests for dante.knowledge.embeddings — SQLite embedding storage."""
 
-import math
-import sqlite3
-from pathlib import Path
 
 import pytest
 
@@ -31,6 +28,7 @@ def db(tmp_path):
 # ---------------------------------------------------------------------------
 # _cosine_similarity
 # ---------------------------------------------------------------------------
+
 
 def test_cosine_identical_vectors():
     v = [1.0, 0.0, 0.0]
@@ -69,6 +67,7 @@ def test_cosine_general():
 # init_db
 # ---------------------------------------------------------------------------
 
+
 def test_init_db_creates_table(tmp_path):
     db_path = tmp_path / "test.db"
     conn = init_db(db_path)
@@ -99,9 +98,16 @@ def test_init_db_creates_parent_dirs(tmp_path):
 # upsert / get
 # ---------------------------------------------------------------------------
 
+
 def test_upsert_and_get(db):
-    upsert(db, id="q1", question="Monthly revenue?", sql="SELECT 1",
-           source="manual", embedding_vector=[1.0, 0.0, 0.0])
+    upsert(
+        db,
+        id="q1",
+        question="Monthly revenue?",
+        sql="SELECT 1",
+        source="manual",
+        embedding_vector=[1.0, 0.0, 0.0],
+    )
     row = get(db, "q1")
     assert row is not None
     assert row["question"] == "Monthly revenue?"
@@ -116,7 +122,9 @@ def test_get_nonexistent(db):
 
 def test_upsert_updates_on_conflict(db):
     upsert(db, id="q1", question="Old?", sql="SELECT 1", embedding_vector=[1.0, 0.0])
-    upsert(db, id="q1", question="Updated?", sql="SELECT 2", embedding_vector=[1.0, 0.0])
+    upsert(
+        db, id="q1", question="Updated?", sql="SELECT 2", embedding_vector=[1.0, 0.0]
+    )
     row = get(db, "q1")
     assert row["question"] == "Updated?"
     assert row["sql"] == "SELECT 2"
@@ -133,7 +141,9 @@ def test_upsert_without_embedding(db):
 
 def test_upsert_stores_timestamps(db):
     upsert(db, id="ts", question="Q?", sql="SELECT 1", embedding_vector=[1.0])
-    row = db.execute("SELECT created_at, updated_at FROM embeddings WHERE id='ts'").fetchone()
+    row = db.execute(
+        "SELECT created_at, updated_at FROM embeddings WHERE id='ts'"
+    ).fetchone()
     assert row["created_at"] is not None
     assert row["updated_at"] is not None
 
@@ -141,6 +151,7 @@ def test_upsert_stores_timestamps(db):
 # ---------------------------------------------------------------------------
 # delete
 # ---------------------------------------------------------------------------
+
 
 def test_delete_existing(db):
     upsert(db, id="del1", question="Q?", sql="SELECT 1", embedding_vector=[1.0])
@@ -158,6 +169,7 @@ def test_delete_nonexistent(db):
 # count
 # ---------------------------------------------------------------------------
 
+
 def test_count_empty(db):
     assert count(db) == 0
 
@@ -172,16 +184,29 @@ def test_count_after_inserts(db):
 # search
 # ---------------------------------------------------------------------------
 
+
 def test_search_empty_db(db):
     results = search(db, [1.0, 0.0, 0.0])
     assert results == []
 
 
 def test_search_returns_similar(db):
-    upsert(db, id="q1", question="Revenue?", sql="SELECT SUM(amount)",
-           source="manual", embedding_vector=[1.0, 0.0, 0.0])
-    upsert(db, id="q2", question="Churn?", sql="SELECT COUNT(*)",
-           source="manual", embedding_vector=[0.0, 1.0, 0.0])
+    upsert(
+        db,
+        id="q1",
+        question="Revenue?",
+        sql="SELECT SUM(amount)",
+        source="manual",
+        embedding_vector=[1.0, 0.0, 0.0],
+    )
+    upsert(
+        db,
+        id="q2",
+        question="Churn?",
+        sql="SELECT COUNT(*)",
+        source="manual",
+        embedding_vector=[0.0, 1.0, 0.0],
+    )
 
     # Query vector closest to q1
     results = search(db, [0.99, 0.01, 0.0], threshold=0.5)
@@ -190,10 +215,10 @@ def test_search_returns_similar(db):
 
 
 def test_search_threshold_filters(db):
-    upsert(db, id="close", question="Close?", sql="SELECT 1",
-           embedding_vector=[1.0, 0.0])
-    upsert(db, id="far", question="Far?", sql="SELECT 2",
-           embedding_vector=[0.0, 1.0])
+    upsert(
+        db, id="close", question="Close?", sql="SELECT 1", embedding_vector=[1.0, 0.0]
+    )
+    upsert(db, id="far", question="Far?", sql="SELECT 2", embedding_vector=[0.0, 1.0])
     results = search(db, [1.0, 0.0], threshold=0.9)
     ids = [r["id"] for r in results]
     assert "close" in ids
@@ -202,8 +227,13 @@ def test_search_threshold_filters(db):
 
 def test_search_top_k_limit(db):
     for i in range(10):
-        upsert(db, id=f"q{i}", question=f"Q{i}?", sql=f"SELECT {i}",
-               embedding_vector=[1.0, float(i) * 0.01])
+        upsert(
+            db,
+            id=f"q{i}",
+            question=f"Q{i}?",
+            sql=f"SELECT {i}",
+            embedding_vector=[1.0, float(i) * 0.01],
+        )
     results = search(db, [1.0, 0.0], top_k=3, threshold=0.0)
     assert len(results) <= 3
 
@@ -234,6 +264,7 @@ def test_search_similarity_in_result(db):
 # stats
 # ---------------------------------------------------------------------------
 
+
 def test_stats_empty(db):
     s = stats(db)
     assert s["total"] == 0
@@ -241,12 +272,30 @@ def test_stats_empty(db):
 
 
 def test_stats_by_source(db):
-    upsert(db, id="a", question="Q1?", sql="SELECT 1",
-           source="manual", embedding_vector=[1.0])
-    upsert(db, id="b", question="Q2?", sql="SELECT 2",
-           source="looker", embedding_vector=[1.0])
-    upsert(db, id="c", question="Q3?", sql="SELECT 3",
-           source="looker", embedding_vector=[1.0])
+    upsert(
+        db,
+        id="a",
+        question="Q1?",
+        sql="SELECT 1",
+        source="manual",
+        embedding_vector=[1.0],
+    )
+    upsert(
+        db,
+        id="b",
+        question="Q2?",
+        sql="SELECT 2",
+        source="looker",
+        embedding_vector=[1.0],
+    )
+    upsert(
+        db,
+        id="c",
+        question="Q3?",
+        sql="SELECT 3",
+        source="looker",
+        embedding_vector=[1.0],
+    )
     s = stats(db)
     assert s["total"] == 3
     assert s["by_source"]["manual"] == 1
@@ -262,6 +311,7 @@ def test_stats_last_updated(db):
 # ---------------------------------------------------------------------------
 # list_all
 # ---------------------------------------------------------------------------
+
 
 def test_list_all_empty(db):
     assert list_all(db) == []

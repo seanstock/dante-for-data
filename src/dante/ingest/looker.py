@@ -26,7 +26,7 @@ def _init_sdk():
     """Initialize the Looker SDK using stored Dante credentials."""
     try:
         import looker_sdk
-        from looker_sdk.sdk.api40 import methods as methods40
+        from looker_sdk.sdk.api40 import methods as methods40  # noqa: F401
     except ImportError:
         logger.error("looker-sdk not installed. Run: pip install dante-ds[looker]")
         return None
@@ -46,11 +46,13 @@ def _init_sdk():
         return None
 
     try:
-        sdk = looker_sdk.init40(config_settings={
-            "base_url": base_url,
-            "client_id": client_id,
-            "client_secret": client_secret,
-        })
+        sdk = looker_sdk.init40(
+            config_settings={
+                "base_url": base_url,
+                "client_id": client_id,
+                "client_secret": client_secret,
+            }
+        )
         return sdk
     except Exception:
         logger.exception("Failed to initialize Looker SDK")
@@ -64,17 +66,19 @@ def _query_dashboard_usage(sdk, lookback_days: int, min_views: int) -> dict[str,
     reliable than the view_count field on dashboard objects.
     """
     try:
-        query = sdk.create_query(body={
-            "model": "i__looker",
-            "view": "history",
-            "fields": ["dashboard.id", "history.query_run_count"],
-            "filters": {
-                "history.created_date": f"{lookback_days} days",
-                "dashboard.id": "NOT NULL",
-            },
-            "sorts": ["history.query_run_count desc"],
-            "limit": "5000",
-        })
+        query = sdk.create_query(
+            body={
+                "model": "i__looker",
+                "view": "history",
+                "fields": ["dashboard.id", "history.query_run_count"],
+                "filters": {
+                    "history.created_date": f"{lookback_days} days",
+                    "dashboard.id": "NOT NULL",
+                },
+                "sorts": ["history.query_run_count desc"],
+                "limit": "5000",
+            }
+        )
         raw = sdk.run_query(query_id=query.id, result_format="json")
         rows = json.loads(raw)
     except Exception:
@@ -92,8 +96,9 @@ def _query_dashboard_usage(sdk, lookback_days: int, min_views: int) -> dict[str,
     return {k: v for k, v in usage.items() if v >= min_views}
 
 
-def _fetch_charts(sdk, dashboard_ids: set[str], usage: dict[str, int],
-                  limit: int) -> list[dict]:
+def _fetch_charts(
+    sdk, dashboard_ids: set[str], usage: dict[str, int], limit: int
+) -> list[dict]:
     """Fetch chart elements and their generated SQL from dashboards."""
     if limit > 0:
         dashboard_ids = set(list(dashboard_ids)[:limit])
@@ -130,19 +135,23 @@ def _fetch_charts(sdk, dashboard_ids: set[str], usage: dict[str, int],
                 if not sql or len(sql) < 50:
                     continue
 
-                charts.append({
-                    "dashboard_id": did,
-                    "dashboard_title": dash.title or f"Dashboard {did}",
-                    "element_id": str(elem.id),
-                    "element_title": title,
-                    "sql": sql,
-                    "view_count": usage.get(did, 0),
-                })
+                charts.append(
+                    {
+                        "dashboard_id": did,
+                        "dashboard_title": dash.title or f"Dashboard {did}",
+                        "element_id": str(elem.id),
+                        "element_title": title,
+                        "sql": sql,
+                        "view_count": usage.get(did, 0),
+                    }
+                )
 
             if (idx + 1) % 10 == 0:
                 logger.info(
                     "  Processed %d/%d dashboards (%d charts)",
-                    idx + 1, len(dashboard_ids), len(charts),
+                    idx + 1,
+                    len(dashboard_ids),
+                    len(charts),
                 )
         except Exception:
             logger.warning("Error on dashboard %s", did, exc_info=True)

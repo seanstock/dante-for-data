@@ -1,8 +1,6 @@
 """Tests for dante.knowledge.glossary."""
 
-from pathlib import Path
 
-import pytest
 import yaml
 
 from dante.knowledge.glossary import define, load, save, undefine, list_terms

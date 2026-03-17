@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import html as _html
 import webbrowser
 from pathlib import Path
 
-from dante._utils import slugify
+from dante._utils import ensure_outputs_dir, slugify
+from dante.chart import _df_to_figure, figure_to_inline_html
 from dante.config import _find_project_root
 from dante.query import sql as run_sql
 
@@ -13,7 +15,9 @@ from dante.query import sql as run_sql
 class App:
     """A Data App with computed value slots filled by SQL queries."""
 
-    def __init__(self, title: str, template: str = "dashboard", root: Path | None = None):
+    def __init__(
+        self, title: str, template: str = "dashboard", root: Path | None = None
+    ):
         self.title = title
         self.template = template
         self.root = root or _find_project_root()
@@ -71,8 +75,7 @@ class App:
         Returns:
             Path to the generated HTML file.
         """
-        outputs_dir = self.root / "outputs"
-        outputs_dir.mkdir(parents=True, exist_ok=True)
+        outputs_dir = ensure_outputs_dir(self.root)
 
         # Execute all computed values
         computed: dict[str, str] = {}
@@ -82,8 +85,23 @@ class App:
                 if config["format"] == "table":
                     computed[name] = _df_to_html_table(df)
                 elif config["format"] == "chart":
-                    # For chart format, create a plotly figure inline
-                    computed[name] = _df_to_inline_chart(df, name)
+                    # Use chart.py's figure builder for inline rendering
+                    cols = list(df.columns)
+                    x_col = cols[0] if len(cols) >= 2 else None
+                    y_col = cols[1] if len(cols) >= 2 else cols[0]
+                    fig = _df_to_figure(
+                        df,
+                        x=x_col,
+                        y=y_col,
+                        kind="bar",
+                        title=name,
+                        template="plotly_dark",
+                    )
+                    fig.update_layout(
+                        paper_bgcolor="transparent", plot_bgcolor="transparent"
+                    )
+                    div_id = f"chart-{name.lower().replace(' ', '-')}"
+                    computed[name] = figure_to_inline_html(fig, div_id=div_id)
                 else:
                     # Scalar: first cell of first row
                     if not df.empty:
@@ -92,7 +110,9 @@ class App:
                     else:
                         computed[name] = "—"
             except Exception as e:
-                computed[name] = f'<span class="error">Error: {e}</span>'
+                computed[name] = (
+                    f'<span class="error">Error: {_html.escape(str(e))}</span>'
+                )
 
         # Substitute values into HTML
         body = self._html
@@ -141,7 +161,9 @@ def _format_scalar(val) -> str:
     """Format a scalar value for display."""
     if isinstance(val, float):
         if abs(val) >= 1_000_000:
-            return f"${val/1_000_000:,.1f}M" if val > 0 else f"{val/1_000_000:,.1f}M"
+            return (
+                f"${val / 1_000_000:,.1f}M" if val > 0 else f"{val / 1_000_000:,.1f}M"
+            )
         elif abs(val) >= 1_000:
             return f"{val:,.0f}"
         else:
@@ -154,39 +176,21 @@ def _df_to_html_table(df) -> str:
     lines = ['<table class="data-table">']
     lines.append("<thead><tr>")
     for col in df.columns:
-        lines.append(f"<th>{col}</th>")
+        lines.append(f"<th>{_html.escape(str(col))}</th>")
     lines.append("</tr></thead>")
     lines.append("<tbody>")
     for _, row in df.iterrows():
         lines.append("<tr>")
         for val in row:
-            lines.append(f"<td>{val}</td>")
+            lines.append(f"<td>{_html.escape(str(val))}</td>")
         lines.append("</tr>")
     lines.append("</tbody></table>")
     return "\n".join(lines)
 
 
-def _df_to_inline_chart(df, name: str) -> str:
-    """Create an inline Plotly chart from a DataFrame."""
-    import json
-    cols = list(df.columns)
-    if len(cols) >= 2:
-        x_data = df[cols[0]].tolist()
-        y_data = df[cols[1]].tolist()
-        trace = {"x": x_data, "y": y_data, "type": "bar", "name": name}
-    else:
-        trace = {"y": df[cols[0]].tolist(), "type": "bar", "name": name}
-
-    div_id = f"chart-{name.lower().replace(' ', '-')}"
-    return (
-        f'<div id="{div_id}"></div>'
-        f'<script>Plotly.newPlot("{div_id}", [{json.dumps(trace)}], '
-        f'{{"template": "plotly_dark", "paper_bgcolor": "transparent", "plot_bgcolor": "transparent"}}'
-        f', {{responsive: true}});</script>'
-    )
-
-
-def _build_document(title: str, template_css: str, custom_css: str, body: str, custom_js: str) -> str:
+def _build_document(
+    title: str, template_css: str, custom_css: str, body: str, custom_js: str
+) -> str:
     """Build a complete HTML document."""
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -206,7 +210,7 @@ def _build_document(title: str, template_css: str, custom_css: str, body: str, c
 <main>
 {body}
 </main>
-{f'<script>{custom_js}</script>' if custom_js else ''}
+{f"<script>{custom_js}</script>" if custom_js else ""}
 </body>
 </html>"""
 

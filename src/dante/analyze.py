@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import html as _html
 import json
 import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dante._utils import slugify
+from dante._utils import ensure_outputs_dir, slugify
 from dante.config import _find_project_root, project_dir
 
 
@@ -45,10 +46,20 @@ def checkpoint(name: str, root: Path | None = None) -> str:
     meta = {
         "name": name,
         "created": datetime.now(timezone.utc).isoformat(),
-        "analysis_files": sum(1 for _ in (checkpoint_path / "analysis").rglob("*") if _.is_file()) if (checkpoint_path / "analysis").exists() else 0,
-        "output_files": sum(1 for _ in (checkpoint_path / "outputs").rglob("*") if _.is_file()) if (checkpoint_path / "outputs").exists() else 0,
+        "analysis_files": sum(
+            1 for _ in (checkpoint_path / "analysis").rglob("*") if _.is_file()
+        )
+        if (checkpoint_path / "analysis").exists()
+        else 0,
+        "output_files": sum(
+            1 for _ in (checkpoint_path / "outputs").rglob("*") if _.is_file()
+        )
+        if (checkpoint_path / "outputs").exists()
+        else 0,
     }
-    (checkpoint_path / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    (checkpoint_path / "meta.json").write_text(
+        json.dumps(meta, indent=2), encoding="utf-8"
+    )
 
     return f"Checkpoint '{name}' saved at {checkpoint_path}"
 
@@ -132,9 +143,8 @@ def report(
     Returns:
         Path to the generated report HTML.
     """
-    root = root or _find_project_root()
-    outputs_dir = root / "outputs"
-    outputs_dir.mkdir(parents=True, exist_ok=True)
+    outputs_dir = ensure_outputs_dir(root)
+    root = outputs_dir.parent
 
     sections = sections or []
     charts = charts or []
@@ -143,11 +153,17 @@ def report(
     if not sections:
         analysis_dir = root / "analysis"
         if analysis_dir.exists():
-            sections = sorted(str(f.relative_to(root)) for f in analysis_dir.glob("*.py"))
+            sections = sorted(
+                str(f.relative_to(root)) for f in analysis_dir.glob("*.py")
+            )
 
     if not charts:
         if outputs_dir.exists():
-            charts = sorted(str(f.relative_to(root)) for f in outputs_dir.glob("*.html") if "report" not in f.name)
+            charts = sorted(
+                str(f.relative_to(root))
+                for f in outputs_dir.glob("*.html")
+                if "report" not in f.name
+            )
 
     html_parts = [
         "<!DOCTYPE html>",
@@ -167,7 +183,7 @@ def report(
         if full_path.exists():
             code = full_path.read_text(encoding="utf-8")
             html_parts.append(f"<h2>{full_path.stem}</h2>")
-            html_parts.append(f"<pre><code>{_escape_html(code)}</code></pre>")
+            html_parts.append(f"<pre><code>{_html.escape(code)}</code></pre>")
 
     # Embed charts as iframes
     for chart_path in charts:
@@ -177,7 +193,7 @@ def report(
             chart_content = full_path.read_text(encoding="utf-8")
             # Embed inline via srcdoc
             html_parts.append(
-                f'<iframe srcdoc="{_escape_attr(chart_content)}" '
+                f'<iframe srcdoc="{_html.escape(chart_content, quote=True)}" '
                 f'style="width:100%;height:500px;border:none;"></iframe>'
             )
 
@@ -189,14 +205,6 @@ def report(
     out_path.write_text("\n".join(html_parts), encoding="utf-8")
 
     return str(out_path)
-
-
-def _escape_html(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def _escape_attr(text: str) -> str:
-    return text.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 _REPORT_CSS = """
