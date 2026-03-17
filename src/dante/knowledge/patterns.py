@@ -75,8 +75,33 @@ def save_pattern(
 ) -> Path:
     """Save a SQL pattern to a .sql file with YAML frontmatter.
 
+    Also mirrors the pattern to the remote knowledge base when configured.
+
     Returns the path to the created file.
     """
+    import logging
+
+    _logger = logging.getLogger(__name__)
+
+    # Mirror to remote when configured (fire-and-forget; errors are logged,
+    # not re-raised so local storage always succeeds).
+    try:
+        from dante.remote import _get_remote_client
+
+        remote = _get_remote_client(root)
+        if remote is not None:
+            try:
+                remote.save_pattern(
+                    question=question,
+                    sql=sql,
+                    tables=tables,
+                    description=description,
+                )
+            except Exception as exc:
+                _logger.warning("Remote save_pattern failed: %s", exc)
+    except ImportError:
+        pass
+
     slug = slugify(question)
     filename = f"{slug}.sql"
     path = _patterns_dir(root) / filename

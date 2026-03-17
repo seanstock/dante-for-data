@@ -30,6 +30,15 @@ async def search_async(
     threshold: float = 0.3,
     root: Path | None = None,
 ) -> list[dict]:
+    # Delegate to remote if configured
+    from dante.remote import _get_remote_client
+
+    remote = _get_remote_client(root)
+    if remote is not None:
+        try:
+            return remote.search(query, top_k=top_k)
+        except Exception as exc:
+            logger.warning("Remote search failed, falling back to local: %s", exc)
     """Search keywords and embeddings, merge results.
 
     Returns a list of dicts, each with keys:
@@ -104,4 +113,15 @@ def search(
     If an event loop is already running (e.g. inside an async MCP handler),
     the caller should use search_async directly.
     """
+    # Delegate to remote if configured (avoids spinning up an async loop for
+    # what is a simple synchronous HTTP call).
+    from dante.remote import _get_remote_client
+
+    remote = _get_remote_client(root)
+    if remote is not None:
+        try:
+            return remote.search(query, top_k=top_k)
+        except Exception as exc:
+            logger.warning("Remote search failed, falling back to local: %s", exc)
+
     return run_async(search_async(query, top_k=top_k, threshold=threshold, root=root))

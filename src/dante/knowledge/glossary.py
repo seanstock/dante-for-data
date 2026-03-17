@@ -11,11 +11,14 @@ File format:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
 
 from dante.config import knowledge_dir
+
+_logger = logging.getLogger(__name__)
 
 
 def _terms_path(root: Path | None = None) -> Path:
@@ -47,14 +50,44 @@ def save(terms: dict[str, str], root: Path | None = None) -> None:
 
 
 def define(term: str, definition: str, root: Path | None = None) -> None:
-    """Add or update a single glossary term."""
+    """Add or update a single glossary term.
+
+    Also mirrors the term to the remote knowledge base when configured.
+    """
+    try:
+        from dante.remote import _get_remote_client
+
+        remote = _get_remote_client(root)
+        if remote is not None:
+            try:
+                remote.define_term(term, definition)
+            except Exception as exc:
+                _logger.warning("Remote define_term failed: %s", exc)
+    except ImportError:
+        pass
+
     terms = load(root)
     terms[term] = definition
     save(terms, root)
 
 
 def undefine(term: str, root: Path | None = None) -> bool:
-    """Remove a glossary term. Returns True if it existed, False otherwise."""
+    """Remove a glossary term. Returns True if it existed, False otherwise.
+
+    Also removes the term from the remote knowledge base when configured.
+    """
+    try:
+        from dante.remote import _get_remote_client
+
+        remote = _get_remote_client(root)
+        if remote is not None:
+            try:
+                remote.undefine_term(term)
+            except Exception as exc:
+                _logger.warning("Remote undefine_term failed: %s", exc)
+    except ImportError:
+        pass
+
     terms = load(root)
     if term not in terms:
         return False
