@@ -185,20 +185,20 @@ class RemoteKnowledge:
     def define_term(self, term: str, definition: str) -> dict:
         """Add or update a glossary term in the remote knowledge base."""
         payload = {"term": term, "definition": definition}
-        result = self._request("/knowledge/terms", method="POST", body=payload)
+        result = self._request("/knowledge/glossary", method="POST", body=payload)
         return result if isinstance(result, dict) else {}
 
     def list_terms(self, limit: int = 50, offset: int = 0) -> list[dict]:
         """List glossary terms from the remote knowledge base."""
         result = self._request(
-            f"/knowledge/terms?limit={limit}&offset={offset}", method="GET"
+            f"/knowledge/glossary?limit={limit}&offset={offset}", method="GET"
         )
         return result if isinstance(result, list) else []
 
     def undefine_term(self, term: str) -> bool:
         """Remove a glossary term from the remote knowledge base."""
         try:
-            self._request(f"/knowledge/terms/{term}", method="DELETE")
+            self._request(f"/knowledge/glossary/{term}", method="DELETE")
             return True
         except ConnectionError:
             return False

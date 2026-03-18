@@ -352,7 +352,7 @@ def test_define_term_calls_correct_url():
         result = client.define_term("ARR", "Annual Recurring Revenue")
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/terms",
+        "https://api.example.com/knowledge/glossary",
         method="POST",
         body={"term": "ARR", "definition": "Annual Recurring Revenue"},
         api_key="sk-test",
@@ -373,7 +373,7 @@ def test_list_terms_calls_correct_url():
         result = client.list_terms()
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/terms?limit=50&offset=0",
+        "https://api.example.com/knowledge/glossary?limit=50&offset=0",
         method="GET",
         body=None,
         api_key="sk-test",
@@ -404,7 +404,7 @@ def test_undefine_term_calls_correct_url():
         result = client.undefine_term("ARR")
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/terms/ARR",
+        "https://api.example.com/knowledge/glossary/ARR",
         method="DELETE",
         body=None,
         api_key="sk-test",
