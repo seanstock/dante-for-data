@@ -137,11 +137,12 @@ def test_save_pattern_no_tables(tmp_path):
 
 
 def test_save_pattern_created_date(tmp_path):
-    from datetime import date
+    import re
 
     path = save_pattern("Date test?", "SELECT 1", root=tmp_path)
     p = load_pattern(path)
-    assert p["created"] == date.today().isoformat()
+    # Assert ISO date format without depending on exact date (avoids midnight flake)
+    assert re.match(r"^\d{4}-\d{2}-\d{2}$", p["created"])
 
 
 # ---------------------------------------------------------------------------

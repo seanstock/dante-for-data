@@ -105,19 +105,15 @@ def test_find_project_root_walks_up(tmp_path, monkeypatch):
     assert root == tmp_path
 
 
-def test_find_project_root_falls_back_to_cwd(tmp_path, monkeypatch):
-    # Create a dir at drive root level — no .dante/ ancestors possible
-    import os, shutil
-    isolated = Path("C:/dante_test_isolated") if os.name == "nt" else Path("/tmp/dante_test_isolated")
-    isolated.mkdir(exist_ok=True)
-    try:
-        monkeypatch.delenv("DANTE_PROJECT", raising=False)
-        monkeypatch.chdir(isolated)
-        root = _find_project_root()
-        assert root == isolated
-    finally:
-        monkeypatch.chdir(tmp_path)
-        shutil.rmtree(isolated, ignore_errors=True)
+def test_find_project_root_falls_back_to_start(tmp_path, monkeypatch):
+    """When no .dante/ or .mcp.json exists in any ancestor, returns start dir."""
+    monkeypatch.delenv("DANTE_PROJECT", raising=False)
+    # Use fake home (from conftest) so the walk never finds real ~/.dante/
+    fake_home = Path.home()  # conftest sets this to tmp_path/fakehome
+    isolated = fake_home / "projects" / "new"
+    isolated.mkdir(parents=True)
+    root = _find_project_root(start=isolated)
+    assert root == isolated
 
 
 # ---------------------------------------------------------------------------

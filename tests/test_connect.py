@@ -180,16 +180,18 @@ def test_check_connection_success():
     assert "successful" in msg.lower()
 
 
-def test_check_connection_failure():
-    success, msg = check_connection(
-        {
-            "dialect": "postgresql",
-            "host": "localhost",
-            "port": "9999",
-            "database": "nonexistent",
-            "user": "baduser",
-            "password": "badpass",
-        }
-    )
+def test_check_connection_failure(monkeypatch):
+    from unittest.mock import patch
+    with patch("dante.connect.create_engine", side_effect=Exception("connection refused")):
+        success, msg = check_connection(
+            {
+                "dialect": "postgresql",
+                "host": "localhost",
+                "port": "9999",
+                "database": "nonexistent",
+                "user": "baduser",
+                "password": "badpass",
+            }
+        )
     assert success is False
     assert msg  # some error message

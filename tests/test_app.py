@@ -82,28 +82,28 @@ def test_df_to_html_table_empty():
 # ---------------------------------------------------------------------------
 
 
-def test_create_returns_app():
-    app = create("Test App", template="blank", root=Path("/tmp/fake"))
+def test_create_returns_app(tmp_path):
+    app = create("Test App", template="blank", root=tmp_path)
     assert isinstance(app, App)
     assert app.title == "Test App"
     assert app.template == "blank"
 
 
-def test_app_id_is_slug():
-    app = App("My Dashboard 2024", root=Path("/tmp/fake"))
+def test_app_id_is_slug(tmp_path):
+    app = App("My Dashboard 2024", root=tmp_path)
     assert app.id == "my-dashboard-2024"
 
 
-def test_app_add_remove_value():
-    app = App("Test", root=Path("/tmp/fake"))
+def test_app_add_remove_value(tmp_path):
+    app = App("Test", root=tmp_path)
     app.add_value("total", "SELECT count(*) FROM users")
     assert "total" in app.value_names()
     app.remove_value("total")
     assert "total" not in app.value_names()
 
 
-def test_app_html_css_js_properties():
-    app = App("Test", root=Path("/tmp/fake"))
+def test_app_html_css_js_properties(tmp_path):
+    app = App("Test", root=tmp_path)
     app.html = "<div>{total}</div>"
     app.css = ".custom { color: red; }"
     app.js = "console.log('hi');"
@@ -118,7 +118,8 @@ def test_app_html_css_js_properties():
 
 
 def _mock_sql(query, root=None):
-    """Return a small DataFrame for any SQL query."""
+    """Return a small DataFrame, asserting a real SQL query was passed."""
+    assert isinstance(query, str) and len(query) > 0, f"Expected non-empty SQL, got: {query!r}"
     return pd.DataFrame({"metric": ["Users"], "value": [1234]})
 
 

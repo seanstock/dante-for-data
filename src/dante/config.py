@@ -43,21 +43,26 @@ def knowledge_dir(root: Path | None = None) -> Path:
     return p
 
 
-def _find_project_root() -> Path:
-    """Walk up from cwd looking for .dante/ or .mcp.json. Fall back to cwd.
+def _find_project_root(start: Path | None = None) -> Path:
+    """Walk up from *start* (default ``cwd``) looking for ``.dante/`` or ``.mcp.json``.
 
-    If the DANTE_PROJECT environment variable is set, it is used directly
-    as the project root without any directory walking. This allows the MCP
-    server (and other subprocesses) to pin the root regardless of cwd.
+    Falls back to *start* if nothing is found.
+
+    If the ``DANTE_PROJECT`` environment variable is set, it is used directly
+    as the project root without any directory walking.
     """
     explicit = os.environ.get("DANTE_PROJECT")
     if explicit:
         return Path(explicit).resolve()
 
-    cwd = Path.cwd()
+    cwd = start or Path.cwd()
+    home = Path.home()
     for parent in [cwd, *cwd.parents]:
         if (parent / ".dante").is_dir() or (parent / ".mcp.json").is_file():
             return parent
+        # Don't walk above home directory
+        if parent == home or parent == home.parent:
+            break
     return cwd
 
 
