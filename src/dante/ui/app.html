@@ -429,22 +429,36 @@
 
       <!-- Remote Knowledge API -->
       <div class="dm-section">
-        <div class="dm-section-title">Remote Knowledge API</div>
-        <p class="dm-section-desc">Connect to a Dante Studio server to share knowledge across your team. When configured, search and pattern operations use the remote server instead of local storage.</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-          <div class="form-group">
-            <label>API URL</label>
-            <input type="text" id="remote-api-url" placeholder="https://your-studio-server/api">
-          </div>
-          <div class="form-group">
-            <label>API Key</label>
-            <input type="password" id="remote-api-key" placeholder="dk_...">
-          </div>
+        <div id="remote-config-summary" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <!-- Populated by JS: shows status when configured, or nothing -->
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-primary" onclick="saveRemoteConfig(this)">Save</button>
-          <button class="btn btn-secondary" onclick="testRemoteConnection()">Test Connection</button>
-          <span id="remote-status" style="font-size:12px;color:var(--text-secondary)"></span>
+        <button class="btn btn-primary" onclick="openRemoteConfigModal()" id="remote-config-btn">+ Connect Remote Knowledge API</button>
+      </div>
+
+      <!-- Remote Config Modal -->
+      <div id="remote-config-modal" onclick="if(event.target===this)closeRemoteConfigModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:90vw">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0;font-size:14px;font-weight:600">Remote Knowledge API</h3>
+            <button onclick="closeRemoteConfigModal()" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer">&times;</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">Connect to a Dante Studio server to share knowledge across your team.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="form-group">
+              <label>API URL</label>
+              <input type="text" id="remote-api-url" placeholder="https://your-studio-server/api">
+            </div>
+            <div class="form-group">
+              <label>API Key</label>
+              <input type="password" id="remote-api-key" placeholder="dk_...">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary" onclick="saveRemoteConfig(this)">Save</button>
+            <button class="btn btn-secondary" onclick="testRemoteConnection()">Test Connection</button>
+            <button class="btn btn-secondary" onclick="disconnectRemote()" id="remote-disconnect-btn" style="display:none;margin-left:auto;color:var(--highlight)">Disconnect</button>
+            <span id="remote-status" style="font-size:12px;color:var(--text-secondary)"></span>
+          </div>
         </div>
       </div>
 
@@ -1985,7 +1999,45 @@ async function loadRemoteConfig() {
     var remote = cfg.remote || {};
     document.getElementById('remote-api-url').value = remote.api_url || '';
     document.getElementById('remote-api-key').placeholder = remote.api_key ? 'Configured (leave blank to keep)' : 'dk_...';
+
+    // Update summary + button text
+    var summary = document.getElementById('remote-config-summary');
+    var btn = document.getElementById('remote-config-btn');
+    var disconnectBtn = document.getElementById('remote-disconnect-btn');
+    if (remote.api_url && remote.api_key) {
+      summary.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80"></span>'
+        + '<span style="font-size:12px;color:var(--text-secondary)">' + remote.api_url + '</span>'
+        + '<span style="font-size:11px;color:#4ade80;font-weight:600">Connected</span>';
+      btn.textContent = 'Edit Remote Connection';
+      if (disconnectBtn) disconnectBtn.style.display = '';
+    } else {
+      summary.innerHTML = '';
+      btn.textContent = '+ Connect Remote Knowledge API';
+      if (disconnectBtn) disconnectBtn.style.display = 'none';
+    }
   } catch(e) {}
+}
+
+function openRemoteConfigModal() {
+  var modal = document.getElementById('remote-config-modal');
+  modal.style.display = 'flex';
+}
+
+function closeRemoteConfigModal() {
+  document.getElementById('remote-config-modal').style.display = 'none';
+}
+
+async function disconnectRemote() {
+  try {
+    var cfg = await api('GET', '/api/config');
+    delete cfg.remote;
+    await api('POST', '/api/config', cfg);
+    closeRemoteConfigModal();
+    loadRemoteConfig();
+    loadKnowledgeSourceSelector();
+  } catch(e) {
+    console.error('Failed to disconnect', e);
+  }
 }
 
 async function saveRemoteConfig(btn) {
@@ -2018,6 +2070,12 @@ async function saveRemoteConfig(btn) {
       document.getElementById('remote-api-key').value = '';
       document.getElementById('remote-api-key').placeholder = 'Configured (leave blank to keep)';
     }
+    // Refresh summary and knowledge source selector
+    setTimeout(function() {
+      closeRemoteConfigModal();
+      loadRemoteConfig();
+      loadKnowledgeSourceSelector();
+    }, 1000);
   } catch(e) {
     statusEl.textContent = 'Failed: ' + (e.message || e);
     statusEl.style.color = '#f87171';
