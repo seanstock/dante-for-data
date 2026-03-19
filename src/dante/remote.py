@@ -246,6 +246,9 @@ def _get_remote_client(root: Path | None = None) -> RemoteKnowledge | None:
     """
     for cfg in (load_project_config(root), _load_global_config()):
         remote = cfg.get("remote", {})
+        # Skip if explicitly disabled
+        if remote.get("enabled") is False:
+            continue
         api_url = remote.get("api_url", "").strip()
         api_key = remote.get("api_key", "").strip()
         if api_url and api_key:

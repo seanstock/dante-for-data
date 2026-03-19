@@ -445,11 +445,11 @@
 
       <hr class="divider">
 
-      <!-- Primary Database -->
+      <!-- Knowledge Source -->
       <div class="dm-section">
-        <div class="dm-section-title">Primary Database</div>
-        <p class="dm-section-desc">Select which database connection to use for SQL queries.</p>
-        <div id="primary-db-selector">
+        <div class="dm-section-title">Knowledge Source</div>
+        <p class="dm-section-desc">Choose where embeddings and patterns are stored. Remote uses the Dante Studio API configured above.</p>
+        <div id="knowledge-source-selector">
           <!-- Populated by JavaScript -->
         </div>
       </div>
@@ -834,7 +834,7 @@ $('#tab-nav').addEventListener('click', function(e) {
   var tab = e.target.dataset.tab;
   if (tab === 'status') loadStatus();
   if (tab === 'knowledge') { loadRules(); loadNotes(); loadKeywords(); loadPatterns(); loadEmbeddings(); }
-  if (tab === 'datamanagement') { loadSources(); loadJobs(); loadRemoteConfig(); loadPrimaryDbSelector(); }
+  if (tab === 'datamanagement') { loadSources(); loadJobs(); loadRemoteConfig(); loadKnowledgeSourceSelector(); }
   if (tab === 'connections') loadConnections();
 });
 
@@ -2055,49 +2055,42 @@ async function testRemoteConnection() {
   }
 }
 
-async function loadPrimaryDbSelector() {
+async function loadKnowledgeSourceSelector() {
   try {
-    var connData = await api('GET', '/api/connections');
     var cfg = await api('GET', '/api/config');
-    var activeConn = cfg.default_connection || '';
+    var remote = cfg.remote || {};
+    var hasRemote = !!(remote.api_url && remote.api_key);
+    var useRemote = hasRemote && remote.enabled !== false;
 
-    var container = document.getElementById('primary-db-selector');
+    var container = document.getElementById('knowledge-source-selector');
     var html = '';
 
-    var localChecked = !activeConn ? 'checked' : '';
-    html += '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer">';
-    html += '<input type="radio" name="primary-db" value="" ' + localChecked + ' onchange="setPrimaryDb(this.value)">';
-    html += '<span style="font-size:13px;font-weight:500">Use Local Database</span>';
-    html += '<span style="font-size:11px;color:var(--text-secondary);margin-left:auto">SQLite / Local files</span>';
+    html += '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-bottom:6px">';
+    html += '<input type="radio" name="knowledge-src" value="local" ' + (!useRemote ? 'checked' : '') + ' onchange="setKnowledgeSource(\'local\')">';
+    html += '<div><span style="font-size:13px;font-weight:500;display:block">Local Knowledge Base</span>';
+    html += '<span style="font-size:11px;color:var(--text-secondary)">SQLite embeddings + YAML files on this machine</span></div>';
     html += '</label>';
 
-    var connections = {};
-    if (connData && typeof connData === 'object' && !Array.isArray(connData)) {
-      connections = connData;
-    }
-
-    Object.keys(connections).forEach(function(name) {
-      var conn = connections[name];
-      var checked = (activeConn === name) ? 'checked' : '';
-      var dialect = conn.dialect || 'unknown';
-      html += '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer">';
-      html += '<input type="radio" name="primary-db" value="' + name + '" ' + checked + ' onchange="setPrimaryDb(this.value)">';
-      html += '<span style="font-size:13px;font-weight:500">' + name + '</span>';
-      html += '<span style="font-size:11px;color:var(--text-secondary);margin-left:auto">' + dialect + '</span>';
-      html += '</label>';
-    });
+    html += '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;' + (!hasRemote ? 'opacity:0.5;pointer-events:none' : '') + '">';
+    html += '<input type="radio" name="knowledge-src" value="remote" ' + (useRemote ? 'checked' : '') + ' ' + (!hasRemote ? 'disabled' : '') + ' onchange="setKnowledgeSource(\'remote\')">';
+    html += '<div><span style="font-size:13px;font-weight:500;display:block">Remote (Dante Studio)</span>';
+    html += '<span style="font-size:11px;color:var(--text-secondary)">' + (hasRemote ? remote.api_url : 'Configure API URL and key above first') + '</span></div>';
+    html += '</label>';
 
     container.innerHTML = html;
   } catch(e) {
-    console.error('Failed to load connections for primary db selector', e);
+    console.error('Failed to load knowledge source selector', e);
   }
 }
 
-async function setPrimaryDb(name) {
+async function setKnowledgeSource(source) {
   try {
-    await api('POST', '/api/config', { default_connection: name || null });
+    var cfg = await api('GET', '/api/config');
+    if (!cfg.remote) cfg.remote = {};
+    cfg.remote.enabled = (source === 'remote');
+    await api('POST', '/api/config', cfg);
   } catch(e) {
-    console.error('Failed to set primary db', e);
+    console.error('Failed to set knowledge source', e);
   }
 }
 
