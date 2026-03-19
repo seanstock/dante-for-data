@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dante — Context is Everything</title>
+<style>
+:root {
+  --bg: #111111;
+  --card: #1A1A1A;
+  --surface: #242424;
+  --border: #2A2A2A;
+  --text: #E8E8E8;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --accent: #E03535;
+  --accent-dark: #8F0B0B;
+  --danger: #F87171;
+  --success: #4ADE80;
+  --warn: #FBBF24;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.slide {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 80px 120px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.slide-number {
+  position: absolute;
+  top: 32px;
+  right: 40px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+h1 {
+  font-size: 3.2rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 24px;
+  letter-spacing: -0.5px;
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+p {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  max-width: 720px;
+  margin-bottom: 16px;
+}
+
+p.large {
+  font-size: 1.5rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.slide-with-sidebar {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 60px;
+  align-items: start;
+}
+
+.principle {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 28px 32px;
+  margin-bottom: 20px;
+}
+
+.principle h2 {
+  font-size: 1.4rem;
+  margin-bottom: 10px;
+}
+
+.principle p {
+  font-size: 1.05rem;
+  margin-bottom: 0;
+}
+
+.principle ul {
+  list-style: none;
+  margin-top: 12px;
+}
+
+.principle ul li {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  padding: 4px 0;
+  padding-left: 16px;
+  position: relative;
+}
+
+.principle ul li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.sidebar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  margin-top: 40px;
+}
+
+.sidebar h3 {
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+.sidebar ul {
+  list-style: none;
+}
+
+.sidebar ul li {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar ul li:last-child {
+  border-bottom: none;
+}
+
+.sidebar ul li strong {
+  color: var(--text);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.product-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px;
+  max-width: 640px;
+}
+
+.product-card h2 {
+  margin-bottom: 6px;
+}
+
+.product-card .subtitle {
+  font-size: 1rem;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.product-card p {
+  font-size: 1.05rem;
+}
+
+.tag {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.tag.free {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--success);
+}
+
+.install-cmd {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 24px;
+  display: inline-block;
+  margin-top: 8px;
+  letter-spacing: 0.5px;
+}
+
+.install-cmd .dollar {
+  color: var(--text-muted);
+  margin-right: 8px;
+}
+
+code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.embed-flow {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr 40px 1fr;
+  align-items: center;
+  gap: 0;
+  margin-top: 32px;
+  max-width: 800px;
+}
+
+.embed-step {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+.embed-step .step-num {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.embed-step h4 {
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.embed-step p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0;
+  max-width: none;
+}
+
+.arrow {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+}
+
+.logo {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 1rem;
+  color: var(--accent);
+  letter-spacing: 2px;
+  position: absolute;
+  top: 32px;
+  left: 40px;
+}
+
+.feature-note {
+  font-size: 1.1rem;
+  color: var(--text);
+  margin-top: 20px;
+  padding: 14px 20px;
+  background: var(--surface);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  max-width: 640px;
+}
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: Title -->
+<div class="slide">
+  <span class="slide-number">01</span>
+  <h3>The Problem with AI + Data</h3>
+  <h1>Context is Everything</h1>
+  <p class="large">Your AI tools are only as good as the context they have. Today, most organizations are building that context by hand, maintaining lists of tables and SQL queries that go stale the moment someone writes them.</p>
+  <p>There is a better way.</p>
+</div>
+
+<!-- SLIDE 2: Principles + Context Sidebar -->
+<div class="slide">
+  <span class="logo">DANTE</span>
+  <span class="slide-number">02</span>
+  <h3>First Principles</h3>
+
+  <div class="slide-with-sidebar">
+    <div>
+      <div class="principle">
+        <h2>Humans should not have to create context.</h2>
+        <p>Your organization already has high-quality, curated context about your data. It just needs to be extracted, not recreated.</p>
+        <ul>
+          <li>Query knowledge (validated SQL from dashboards and BI tools)</li>
+          <li>Query standards (how your team writes joins, aggregations, filters)</li>
+          <li>Presentation standards (formatting, naming, visualization conventions)</li>
+          <li>Agentic behaviors (when to explore, when to checkpoint, when to ask)</li>
+        </ul>
+      </div>
+
+      <div class="principle">
+        <h2>Humans should not have to maintain context.</h2>
+        <p>Any system that depends on people maintaining a golden record set of queries or standards will fail. It creates a dependency on individuals, differential quality across teams, and a single point of failure.</p>
+      </div>
+
+      <div class="principle">
+        <h2>Context should improve over time and work for everyone.</h2>
+        <p>Improving context should be part of people's organic workflows. AI is better at cataloging and maintaining knowledge than humans are. Context should compound as your team works, not decay when someone leaves.</p>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <h3>What is context?</h3>
+      <ul>
+        <li>
+          <strong>Query knowledge</strong>
+          Validated SQL your team has already written and confirmed
+        </li>
+        <li>
+          <strong>Schema metadata</strong>
+          Table relationships, column descriptions, data types
+        </li>
+        <li>
+          <strong>Business glossary</strong>
+          What "MAU" means, how "churn" is calculated
+        </li>
+        <li>
+          <strong>Dashboard SQL</strong>
+          The exact queries behind your BI charts
+        </li>
+        <li>
+          <strong>Rules</strong>
+          Presentation standards, coding conventions, brand guidelines
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3: Introducing Dante -->
+<div class="slide">
+  <span class="logo">DANTE</span>
+  <span class="slide-number">03</span>
+  <h3>A Better Way</h3>
+  <h1>Introducing Dante</h1>
+  <p class="large">A two-part system that extracts, maintains, and delivers context to AI coding tools automatically.</p>
+
+  <div class="product-card">
+    <span class="tag free">FREE / OPEN SOURCE</span>
+    <h2>Dante-DS</h2>
+    <div class="subtitle">For the individual data scientist</div>
+    <p>A Python library that creates local context from your BI platforms and warehouse schema. Connects to your dashboards, extracts the SQL behind every chart, and converts it into semantic embeddings that your AI tools can search.</p>
+    <p>Within minutes, Claude Code or Cursor will have the expertise of your entire analytics team.</p>
+    <div class="install-cmd"><span class="dollar">$</span>pip install dante-ds</div>
+  </div>
+
+  <div class="feature-note">Dante includes a built-in management UI for configuring connections, managing knowledge, and running ingestion.</div>
+</div>
+
+<!-- SLIDE 4: How Embeddings Work -->
+<div class="slide">
+  <span class="logo">DANTE</span>
+  <span class="slide-number">04</span>
+  <h3>Under the hood</h3>
+  <h2>From dashboards to embeddings.</h2>
+  <p>Dante connects to your BI platforms, extracts the SQL behind every chart, simplifies it, and stores it as a searchable embedding. When you ask a question, the AI finds the closest matching queries and adapts them.</p>
+
+  <div class="embed-flow">
+    <div class="embed-step">
+      <div class="step-num">01 CONNECT</div>
+      <h4>BI Platform</h4>
+      <p>Looker, Redash, Superset, or your warehouse schema</p>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="embed-step">
+      <div class="step-num">02 EXTRACT</div>
+      <h4>Dashboard SQL</h4>
+      <p>Every chart's query, simplified and paired with a natural language question</p>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="embed-step">
+      <div class="step-num">03 EMBED</div>
+      <h4>Vector Index</h4>
+      <p>Stored locally. Searched automatically when you ask questions.</p>
+    </div>
+  </div>
+
+  <p style="margin-top: 32px;">The more dashboards your organization has, the more context the AI starts with. No manual curation required.</p>
+</div>
+
+</body>
+</html>

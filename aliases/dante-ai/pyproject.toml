@@ -1,0 +1,10 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dante-ai"
+version = "0.1.0"
+description = "Alias for datascience-ai – install either package to get the same tools"
+requires-python = ">=3.11"
+dependencies = ["datascience-ai==0.1.0"]

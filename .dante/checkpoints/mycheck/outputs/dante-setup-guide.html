@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dante Setup Guide</title>
+<style>
+:root {
+  --bg: #111111;
+  --card: #1A1A1A;
+  --surface: #242424;
+  --border: #2A2A2A;
+  --text: #E8E8E8;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --accent: #E03535;
+  --accent-dark: #8F0B0B;
+  --danger: #F87171;
+  --success: #4ADE80;
+  --warn: #FBBF24;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.container {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 60px 32px 120px;
+}
+
+.logo {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+}
+
+h1 span {
+  color: var(--accent);
+}
+
+.subtitle {
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  margin-bottom: 48px;
+  max-width: 600px;
+}
+
+/* Steps */
+.step {
+  margin-bottom: 56px;
+  position: relative;
+}
+
+.step-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.step-num {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.step h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.step p {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+  max-width: 660px;
+}
+
+.step p strong {
+  color: var(--text);
+}
+
+/* Code blocks */
+.cmd {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  font-size: 0.95rem;
+  color: var(--success);
+  display: block;
+  overflow-x: auto;
+}
+
+.cmd .dollar {
+  color: var(--text-muted);
+  margin-right: 8px;
+  user-select: none;
+}
+
+.cmd .comment {
+  color: var(--text-muted);
+}
+
+/* Screenshot placeholder */
+.screenshot {
+  background: var(--card);
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  margin: 20px 0;
+  padding: 48px 32px;
+  text-align: center;
+  position: relative;
+}
+
+.screenshot .label {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.screenshot .desc {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.screenshot img {
+  max-width: 100%;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Callout */
+.callout {
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 16px 20px;
+  margin: 16px 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.callout strong {
+  color: var(--text);
+}
+
+/* Field table */
+.field-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.95rem;
+}
+
+.field-table th {
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.field-table td:first-child {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.field-table code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--surface);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.85em;
+  color: var(--warn);
+}
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 56px 0;
+}
+
+/* Inline steps list */
+.mini-steps {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+
+.mini-steps li {
+  position: relative;
+  padding: 6px 0 6px 24px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.mini-steps li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Footer */
+.footer {
+  margin-top: 64px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footer p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  max-width: none;
+  margin: 0 auto;
+}
+
+.footer .install-reminder {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 1.1rem;
+  color: var(--success);
+  margin-bottom: 12px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="logo">DANTE</div>
+  <h1>Getting Started with <span>Dante</span></h1>
+  <p class="subtitle">From install to your first AI-powered query in five steps. This guide walks through setting up Dante with a Databricks connection.</p>
+
+  <hr class="divider">
+
+  <!-- STEP 1: Install -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">STEP 01</span>
+      <h2>Install Dante</h2>
+    </div>
+    <p>Dante is a Python package. Install it from PyPI and you get the CLI, the MCP server, the management UI, and the Python library.</p>
+    <div class="cmd"><span class="dollar">$</span> pip install dante-ds</div>
+    <p>Verify the install by checking the version.</p>
+    <div class="cmd"><span class="dollar">$</span> dante --version</div>
+  </div>
+
+  <!-- STEP 2: Launch -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">STEP 02</span>
+      <h2>Launch a project</h2>
+    </div>
+    <p>Navigate to your project directory (or create a new one) and run <strong>dante launch</strong>. This scaffolds the project structure, wires up the MCP server for Claude Code, and opens the management UI in your browser.</p>
+    <div class="cmd"><span class="dollar">$</span> mkdir my-project && cd my-project<br><span class="dollar">$</span> dante launch</div>
+    <p>Dante creates the following structure:</p>
+    <div class="cmd"><span class="comment">.mcp.json           # MCP server config for Claude Code</span><br><span class="comment">.claude/skills/     # Slash commands (/query, /dashboard, ...)</span><br><span class="comment">CLAUDE.md           # Tool reference for Claude</span><br><span class="comment">.dante/             # Config, knowledge, embeddings</span><br><span class="comment">analysis/           # Your analysis scripts</span><br><span class="comment">outputs/            # Generated charts, dashboards, reports</span></div>
+    <p>The management UI opens automatically at <strong>http://localhost:4040</strong>.</p>
+
+    <div class="screenshot">
+      <div class="label">Screenshot A</div>
+      <div class="desc">Terminal output after running <code>dante launch</code>, showing the scaffolded directory structure.</div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Connect to Databricks -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">STEP 03</span>
+      <h2>Connect to Databricks</h2>
+    </div>
+    <p>In the management UI, click the <strong>Connections</strong> tab. This is where you configure your database connection.</p>
+
+    <div class="screenshot">
+      <div class="label">Screenshot B</div>
+      <div class="desc">The Connections tab in the Dante UI, showing the empty connection form.</div>
+    </div>
+
+    <p>Fill in the connection form with your Databricks details:</p>
+
+    <table class="field-table">
+      <thead>
+        <tr><th>Field</th><th>Value</th><th>Where to find it</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Name</td>
+          <td>A label for this connection (e.g., <code>prod-databricks</code>)</td>
+          <td>Your choice</td>
+        </tr>
+        <tr>
+          <td>Dialect</td>
+          <td>Select <strong>Databricks</strong></td>
+          <td>Dropdown</td>
+        </tr>
+        <tr>
+          <td>Host</td>
+          <td><code>dbc-xxxxx.cloud.databricks.com</code></td>
+          <td>Your workspace URL (without <code>https://</code>)</td>
+        </tr>
+        <tr>
+          <td>Access Token</td>
+          <td><code>dapi...</code></td>
+          <td>Databricks > User Settings > Developer > Access Tokens > Generate New Token</td>
+        </tr>
+        <tr>
+          <td>Database</td>
+          <td>Your catalog name</td>
+          <td>Databricks > Catalog Explorer, listed in the left sidebar</td>
+        </tr>
+        <tr>
+          <td>HTTP Path</td>
+          <td><code>/sql/1.0/warehouses/abc123</code></td>
+          <td>Databricks > SQL Warehouses > your warehouse > Connection Details</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="screenshot">
+      <div class="label">Screenshot C</div>
+      <div class="desc">The connection form filled in with Databricks fields: Name, Dialect set to Databricks, Host, Access Token, Database, and HTTP Path.</div>
+    </div>
+
+    <p>Click <strong>Test Connection</strong> to verify. You should see a green success message. Then click <strong>Save Connection</strong>.</p>
+
+    <div class="screenshot">
+      <div class="label">Screenshot D</div>
+      <div class="desc">The saved connection appearing in the connections list with a "Set Active" button.</div>
+    </div>
+
+    <p>Click <strong>Set Active</strong> to make this your default connection. The active connection gets a green indicator.</p>
+
+    <div class="callout">
+      <strong>Where do credentials go?</strong> Connection details are stored in <code>~/.dante/connections.yaml</code>, which is gitignored. They persist across all your Dante projects.
+    </div>
+  </div>
+
+  <!-- STEP 4: Ingest Context -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">STEP 04</span>
+      <h2>Ingest context from your dashboards</h2>
+    </div>
+    <p>This is where Dante gets interesting. If your organization uses Databricks SQL dashboards (or Looker, Redash, Superset), Dante can extract the SQL behind every chart and convert it into searchable embeddings. Your AI tools will be able to find and adapt proven queries instead of writing SQL from scratch.</p>
+
+    <p>Go to the <strong>Data Management</strong> tab. If you are ingesting from Databricks dashboards, you need to add your Databricks API credentials first.</p>
+
+    <p>Expand the <strong>API Credentials</strong> section at the bottom and fill in:</p>
+
+    <table class="field-table">
+      <thead>
+        <tr><th>Field</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Workspace URL</td>
+          <td><code>https://dbc-xxxxx.cloud.databricks.com</code></td>
+        </tr>
+        <tr>
+          <td>Personal Access Token</td>
+          <td>Same token from Step 3 (or a separate one)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Click <strong>Save Credentials</strong>.</p>
+
+    <div class="screenshot">
+      <div class="label">Screenshot E</div>
+      <div class="desc">The Data Management tab with the API Credentials section expanded, showing the Databricks fields filled in.</div>
+    </div>
+
+    <p>Now scroll up to <strong>Context Ingestion</strong>. Select your source from the dropdown (Databricks, Looker, Warehouse, or All). For a first run, you might want to check "Limit dashboards" and set it to 5 to test things out.</p>
+
+    <p>Click <strong>Generate Embeddings</strong>.</p>
+
+    <div class="screenshot">
+      <div class="label">Screenshot F</div>
+      <div class="desc">The ingestion controls with Databricks selected, "Limit dashboards" checked and set to 5, and the Generate Embeddings button visible.</div>
+    </div>
+
+    <p>Dante will connect to your Databricks workspace, pull dashboard definitions, extract the SQL from each chart, simplify it, and store it as a vector embedding. Progress appears in the <strong>Recent Jobs</strong> section below.</p>
+
+    <div class="screenshot">
+      <div class="label">Screenshot G</div>
+      <div class="desc">The Recent Jobs section showing a completed ingestion job with counts (e.g., +12 created, ~0 updated, -0 skipped).</div>
+    </div>
+
+    <div class="callout">
+      <strong>No dashboards?</strong> You can skip this step. Dante also builds context from your warehouse schema automatically when you use the <code>dante_describe</code> and <code>dante_profile</code> tools. You can also save SQL patterns manually with <code>dante_save_pattern</code> as you work.
+    </div>
+  </div>
+
+  <!-- STEP 5: Start Using -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">STEP 05</span>
+      <h2>Start asking questions</h2>
+    </div>
+    <p>Open Claude Code (or Cursor) in your project directory. The MCP server connects automatically via the <code>.mcp.json</code> file that <code>dante launch</code> created.</p>
+
+    <p>Try asking a question about your data. Dante's tools are available to Claude as MCP functions. A typical interaction looks like this:</p>
+
+    <div class="cmd"><span class="comment"># You ask Claude a question like:</span><br>"What were our top 10 customers by revenue last quarter?"<br><br><span class="comment"># Behind the scenes, Claude will:</span><br><span class="comment"># 1. Call dante_search to find relevant SQL patterns</span><br><span class="comment"># 2. Call dante_describe on the relevant tables</span><br><span class="comment"># 3. Write and execute SQL via dante_sql</span><br><span class="comment"># 4. Optionally visualize with dante_chart</span></div>
+
+    <p>The more context Dante has (from ingestion, glossary terms, saved patterns), the better the results. Context compounds over time as you work.</p>
+
+    <div class="callout">
+      <strong>Slash commands.</strong> Dante installs several slash commands for Claude Code: <code>/query</code> for data exploration, <code>/dashboard</code> for building interactive dashboards, <code>/analyze</code> for multi-step analysis with checkpoints, and <code>/report</code> for compiling results into HTML reports.
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="footer">
+    <div class="install-reminder">$ pip install dante-ds</div>
+    <p>Free and open source. Works with Claude Code and Cursor.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

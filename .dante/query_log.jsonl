@@ -1,0 +1,1 @@
+{"timestamp": "2026-03-05T23:38:33.639276+00:00", "query": "SELECT \n  HOUR(tpep_dropoff_datetime) AS dropoff_hour,\n  COUNT(*) AS trip_count\nFROM nyctaxi.trips\nWHERE trip_distance > 0 AND trip_distance < 10 AND fare_amount > 0 AND fare_amount < 50\nGROUP BY HOUR(tpep_dropoff_datetime)\nORDER BY dropoff_hour", "rows": 24, "elapsed_ms": 4531.0}

@@ -437,7 +437,7 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-primary" onclick="saveRemoteConfig()">Save</button>
+          <button class="btn btn-primary" onclick="saveRemoteConfig(this)">Save</button>
           <button class="btn btn-secondary" onclick="testRemoteConnection()">Test Connection</button>
           <span id="remote-status" style="font-size:12px;color:var(--text-secondary)"></span>
         </div>
@@ -1983,23 +1983,42 @@ async function loadRemoteConfig() {
   } catch(e) {}
 }
 
-async function saveRemoteConfig() {
+async function saveRemoteConfig(btn) {
+  var statusEl = document.getElementById('remote-status');
   var url = document.getElementById('remote-api-url').value.trim();
   var key = document.getElementById('remote-api-key').value.trim();
 
-  var cfg = await api('GET', '/api/config');
-  if (!cfg.remote) cfg.remote = {};
-  if (url) cfg.remote.api_url = url;
-  if (key) cfg.remote.api_key = key;
+  if (!url && !key) {
+    statusEl.textContent = 'Enter a URL or key';
+    statusEl.style.color = '#f87171';
+    return;
+  }
 
-  await api('POST', '/api/config', cfg);
-  document.getElementById('remote-status').textContent = 'Saved';
-  document.getElementById('remote-status').style.color = '#4ade80';
-  setTimeout(function() { document.getElementById('remote-status').textContent = ''; }, 3000);
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  statusEl.textContent = '';
 
-  if (key) {
-    document.getElementById('remote-api-key').value = '';
-    document.getElementById('remote-api-key').placeholder = 'Configured (leave blank to keep)';
+  try {
+    var cfg = await api('GET', '/api/config');
+    if (!cfg.remote) cfg.remote = {};
+    if (url) cfg.remote.api_url = url;
+    if (key) cfg.remote.api_key = key;
+
+    await api('POST', '/api/config', cfg);
+    statusEl.textContent = 'Saved';
+    statusEl.style.color = '#4ade80';
+    setTimeout(function() { statusEl.textContent = ''; }, 3000);
+
+    if (key) {
+      document.getElementById('remote-api-key').value = '';
+      document.getElementById('remote-api-key').placeholder = 'Configured (leave blank to keep)';
+    }
+  } catch(e) {
+    statusEl.textContent = 'Failed: ' + (e.message || e);
+    statusEl.style.color = '#f87171';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
   }
 }
 
