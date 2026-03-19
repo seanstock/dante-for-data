@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 _CLAUDE_MD = """\
@@ -495,6 +496,111 @@ def _write_if_not_exists(path: Path, content: str) -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+
+
+def sync_studio_rules(root: Path, cursor: bool = False) -> bool:
+    """Fetch org rules from Dante Studio and write a managed section.
+
+    Returns True if rules were synced, False if remote not configured.
+    """
+    from dante.remote import _get_remote_client
+
+    client = _get_remote_client(root)
+    if client is None:
+        return False
+
+    # Fetch org-scoped notes (global rules) from the studio
+    try:
+        import urllib.error
+        import urllib.request
+
+        url = f"{client.api_url}/notes"
+        req = urllib.request.Request(url)
+        req.add_header("Authorization", f"Bearer {client.api_key}")
+        req.add_header("Accept", "application/json")
+
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        notes = data.get("notes", [])
+        org_rules = [n for n in notes if n.get("scope") == "org"]
+
+        if not org_rules:
+            return True  # Connected but no rules to sync
+
+    except Exception as e:
+        logging.getLogger(__name__).warning("Failed to fetch studio rules: %s", e)
+        return False
+
+    # --- Cursor: write to .cursor/rules/dante-studio.mdc ---
+    if cursor:
+        rules_dir = root / ".cursor" / "rules"
+        rules_dir.mkdir(parents=True, exist_ok=True)
+        mdc_path = rules_dir / "dante-studio.mdc"
+
+        mdc_lines = ["---"]
+        mdc_lines.append("description: Organization rules from Dante Studio")
+        mdc_lines.append("globs: **/*")
+        mdc_lines.append("alwaysApply: true")
+        mdc_lines.append("---")
+        mdc_lines.append("")
+        mdc_lines.append("# Organization Rules")
+        mdc_lines.append("")
+        for rule in org_rules:
+            mdc_lines.append(f"## {rule.get('title', 'Untitled')}")
+            mdc_lines.append("")
+            mdc_lines.append(rule.get("content", ""))
+            mdc_lines.append("")
+
+        mdc_path.write_text("\n".join(mdc_lines), encoding="utf-8")
+        return True
+
+    # --- Claude Code: managed section in CLAUDE.md ---
+    target = root / "CLAUDE.md"
+    if not target.exists():
+        return False
+
+    # Build the managed section content
+    lines = []
+    lines.append("")
+    lines.append("<!-- MANAGED BY DANTE STUDIO — DO NOT EDIT THIS SECTION -->")
+    lines.append("## Organization Rules")
+    lines.append("")
+    for rule in org_rules:
+        lines.append(f"### {rule.get('title', 'Untitled')}")
+        lines.append("")
+        lines.append(rule.get("content", ""))
+        lines.append("")
+    lines.append("<!-- END DANTE STUDIO MANAGED SECTION -->")
+
+    managed_content = "\n".join(lines)
+
+    # Read existing content and replace/append managed section
+    existing = target.read_text(encoding="utf-8")
+
+    START_MARKER = "<!-- MANAGED BY DANTE STUDIO — DO NOT EDIT THIS SECTION -->"
+    END_MARKER = "<!-- END DANTE STUDIO MANAGED SECTION -->"
+
+    if START_MARKER in existing:
+        # Replace existing managed section
+        start_idx = existing.index(START_MARKER)
+        before = existing[:start_idx].rstrip("\n")
+
+        if END_MARKER in existing:
+            end_idx = existing.index(END_MARKER) + len(END_MARKER)
+            after = existing[end_idx:].lstrip("\n")
+        else:
+            after = ""
+
+        new_content = before + managed_content
+        if after:
+            new_content += "\n" + after
+    else:
+        # Append managed section
+        new_content = existing.rstrip("\n") + "\n" + managed_content
+
+    target.write_text(new_content, encoding="utf-8")
+    return True
 
 
 def _write_skill(skill_dir: Path, content: str) -> None:

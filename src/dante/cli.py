@@ -64,6 +64,12 @@ def launch(name: str | None, ui: bool, cursor: bool):
     click.echo("  outputs/            — Generated charts, dashboards, reports")
     click.echo()
 
+    # Sync org rules from Dante Studio if remote is configured
+    from dante.scaffold import sync_studio_rules
+
+    if sync_studio_rules(project_path, cursor=cursor):
+        click.echo("  Synced organization rules from Dante Studio")
+
     if ui:
         click.echo("Opening management UI...")
         _start_ui()
