@@ -288,6 +288,7 @@
             <option value="bigquery">BigQuery</option>
             <option value="mysql">MySQL</option>
             <option value="sqlite">SQLite</option>
+            <option value="duckdb">DuckDB (Local Files)</option>
           </select>
         </div>
         <div class="form-group conn-field" data-dialects="postgresql,mysql,snowflake,databricks">
@@ -345,6 +346,10 @@
         <div class="form-group conn-field" data-dialects="sqlite">
           <label for="conn-filepath">File Path</label>
           <input type="text" id="conn-filepath" placeholder="/path/to/database.db">
+        </div>
+        <div class="form-group conn-field" data-dialects="duckdb">
+          <label for="conn-parquet-dir">Parquet Directory</label>
+          <input type="text" id="conn-parquet-dir" placeholder="C:/Users/you/data">
         </div>
       </div>
       <div class="btn-row">
@@ -851,7 +856,7 @@ function _updateConnFields() {
 }
 
 var _connFieldIds = ['conn-host','conn-port','conn-database','conn-schema','conn-user','conn-password','conn-token',
-  'conn-warehouse','conn-role','conn-account','conn-http-path','conn-project','conn-credentials-path','conn-filepath'];
+  'conn-warehouse','conn-role','conn-account','conn-http-path','conn-project','conn-credentials-path','conn-filepath','conn-parquet-dir'];
 
 function getConnFormData() {
   var d = {
