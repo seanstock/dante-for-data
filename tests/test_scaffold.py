@@ -63,9 +63,9 @@ def test_scaffold_project_creates_keywords_yaml(tmp_path):
     assert (project / ".dante" / "knowledge" / "keywords.yaml").exists()
 
 
-def test_scaffold_project_creates_notes_md(tmp_path):
+def test_scaffold_project_creates_notes_yaml(tmp_path):
     project = scaffold_project("myproject", root=tmp_path)
-    assert (project / ".dante" / "knowledge" / "notes.md").exists()
+    assert (project / ".dante" / "knowledge" / "notes.yaml").exists()
 
 
 def test_scaffold_project_creates_claude_md(tmp_path):

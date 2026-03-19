@@ -106,10 +106,18 @@ def test_find_project_root_walks_up(tmp_path, monkeypatch):
 
 
 def test_find_project_root_falls_back_to_cwd(tmp_path, monkeypatch):
-    monkeypatch.delenv("DANTE_PROJECT", raising=False)
-    monkeypatch.chdir(tmp_path)
-    root = _find_project_root()
-    assert root == tmp_path
+    # Create a dir at drive root level — no .dante/ ancestors possible
+    import os, shutil
+    isolated = Path("C:/dante_test_isolated") if os.name == "nt" else Path("/tmp/dante_test_isolated")
+    isolated.mkdir(exist_ok=True)
+    try:
+        monkeypatch.delenv("DANTE_PROJECT", raising=False)
+        monkeypatch.chdir(isolated)
+        root = _find_project_root()
+        assert root == isolated
+    finally:
+        monkeypatch.chdir(tmp_path)
+        shutil.rmtree(isolated, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
