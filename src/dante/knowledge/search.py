@@ -30,15 +30,13 @@ async def search_async(
     threshold: float = 0.3,
     root: Path | None = None,
 ) -> list[dict]:
-    # Delegate to remote if configured
+    # Remote mode: search studio only, no local fallback
     from dante.remote import _get_remote_client
 
     remote = _get_remote_client(root)
     if remote is not None:
-        try:
-            return remote.search(query, top_k=top_k)
-        except Exception as exc:
-            logger.warning("Remote search failed, falling back to local: %s", exc)
+        return remote.search(query, top_k=top_k)
+
     """Search keywords and embeddings, merge results.
 
     Returns a list of dicts, each with keys:
@@ -119,9 +117,6 @@ def search(
 
     remote = _get_remote_client(root)
     if remote is not None:
-        try:
-            return remote.search(query, top_k=top_k)
-        except Exception as exc:
-            logger.warning("Remote search failed, falling back to local: %s", exc)
+        return remote.search(query, top_k=top_k)
 
     return run_async(search_async(query, top_k=top_k, threshold=threshold, root=root))

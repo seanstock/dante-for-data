@@ -52,17 +52,16 @@ def save(terms: dict[str, str], root: Path | None = None) -> None:
 def define(term: str, definition: str, root: Path | None = None) -> None:
     """Add or update a single glossary term.
 
-    Also mirrors the term to the remote knowledge base when configured.
+    When remote is enabled, saves to Dante Studio only.
+    When local, saves to terms.yaml.
     """
     try:
         from dante.remote import _get_remote_client
 
         remote = _get_remote_client(root)
         if remote is not None:
-            try:
-                remote.define_term(term, definition)
-            except Exception as exc:
-                _logger.warning("Remote define_term failed: %s", exc)
+            remote.define_term(term, definition)
+            return
     except ImportError:
         pass
 
@@ -74,17 +73,15 @@ def define(term: str, definition: str, root: Path | None = None) -> None:
 def undefine(term: str, root: Path | None = None) -> bool:
     """Remove a glossary term. Returns True if it existed, False otherwise.
 
-    Also removes the term from the remote knowledge base when configured.
+    When remote is enabled, removes from Dante Studio only.
+    When local, removes from terms.yaml.
     """
     try:
         from dante.remote import _get_remote_client
 
         remote = _get_remote_client(root)
         if remote is not None:
-            try:
-                remote.undefine_term(term)
-            except Exception as exc:
-                _logger.warning("Remote undefine_term failed: %s", exc)
+            return remote.undefine_term(term)
     except ImportError:
         pass
 
