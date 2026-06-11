@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dante &mdash; Management UI</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -261,6 +261,7 @@
   <button class="active" data-tab="knowledge">Knowledge</button>
   <button data-tab="datamanagement">Data Management</button>
   <button data-tab="connections">Connections</button>
+  <button data-tab="skills">Skills</button>
   <button data-tab="status">Status</button>
 </nav>
 
@@ -700,6 +701,44 @@
     </div>
   </div>
 
+  <!-- ═══════════════════ SKILLS TAB ═══════════════════ -->
+  <div class="tab-panel" id="panel-skills">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <h2 style="margin:0">Agent Skills</h2>
+          <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">Slash commands available to the AI agent. Skills define structured workflows the agent follows when invoked.</p>
+        </div>
+        <button class="btn-primary" onclick="showSkillForm()">+ New Skill</button>
+      </div>
+      <div id="skill-form" style="display:none;margin-bottom:18px;padding:16px;border:1px solid var(--border);border-radius:8px">
+        <input type="hidden" id="skill-original-name" value="">
+        <label class="k-label">Name
+          <input class="k-input" id="skill-name" placeholder="analyze">
+        </label>
+        <label class="k-label" style="margin-top:8px">Description
+          <input class="k-input" id="skill-description" placeholder="Run a structured multi-step data analysis">
+        </label>
+        <label class="k-label" style="margin-top:8px">Argument hint
+          <input class="k-input" id="skill-argument-hint" placeholder="[research question]">
+        </label>
+        <label class="k-label" style="margin-top:8px">Allowed tools (comma-separated)
+          <input class="k-input" id="skill-allowed-tools" placeholder="dante_sql, dante_tables, dante_describe">
+        </label>
+        <label class="k-label" style="margin-top:8px">Skill body (SKILL.md content)
+          <textarea class="k-input" id="skill-body" rows="10" placeholder="The user wants to... Follow this protocol:&#10;&#10;1. ...&#10;2. ..." style="font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
+        </label>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn-primary" onclick="saveSkill()">Save</button>
+          <button class="k-btn-cancel" onclick="hideSkillForm()">Cancel</button>
+        </div>
+      </div>
+      <div id="skills-list">
+        <div class="empty-state"><span class="spinner"></span> Loading skills...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════════════════ STATUS TAB ═══════════════════ -->
   <div class="tab-panel" id="panel-status">
     <div class="card">
@@ -855,6 +894,7 @@ $('#tab-nav').addEventListener('click', function(e) {
   if (tab === 'knowledge') { loadRules(); loadNotes(); loadKeywords(); loadPatterns(); loadEmbeddings(); }
   if (tab === 'datamanagement') { loadSources(); loadJobs(); loadRemoteConfig(); loadKnowledgeSourceSelector(); }
   if (tab === 'connections') loadConnections();
+  if (tab === 'skills') loadSkills();
 });
 
 
@@ -1343,73 +1383,6 @@ async function deleteNote(name) {
 }
 
 /* ──────────────────────────────────────────────────────────
-   KNOWLEDGE — Glossary
-   API returns { term: definition, ... } dict
-   ────────────────────────────────────────────────────────── */
-var glossaryTerms = {};
-
-async function loadGlossary() {
-  try {
-    var data = await api('GET', '/api/glossary');
-    glossaryTerms = (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
-    renderGlossary();
-  } catch (_) {
-    glossaryTerms = {};
-    renderGlossary();
-  }
-}
-
-function renderGlossary() {
-  var list = $('#glossary-list');
-  var entries = Object.entries(glossaryTerms);
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="k-empty">No glossary terms defined yet. Add acronyms, definitions, or business concepts.</div>';
-    return;
-  }
-  var html = '';
-  entries.sort(function(a, b) { return a[0].localeCompare(b[0]); }).forEach(function(e) {
-    var term = e[0], def = e[1] || '';
-    html += '<div class="k-item">'
-      + '<div class="k-item-body">'
-      + '  <div class="k-item-title">' + esc(term) + '</div>'
-      + (def ? '<div class="k-item-text">' + esc(def) + '</div>' : '')
-      + '</div>'
-      + '<div class="k-actions">'
-      + '  <button class="k-icon-btn danger" title="Delete" onclick="deleteGlossaryTerm(\'' + esc(term).replace(/'/g, "\\'") + '\')">&#10005;</button>'
-      + '</div>'
-      + '</div>';
-  });
-  list.innerHTML = html;
-}
-
-async function addGlossaryTerm() {
-  var term = $('#glossary-term').value.trim();
-  var def = $('#glossary-def').value.trim();
-  if (!term) { toast('Term is required.', 'error'); return; }
-  try {
-    await api('POST', '/api/glossary', { term: term, definition: def });
-    toast('Term added.', 'success');
-    $('#glossary-term').value = '';
-    $('#glossary-def').value = '';
-    kHideForm('glossary');
-    loadGlossary();
-  } catch (e) {
-    toast('Failed: ' + e.message, 'error');
-  }
-}
-
-async function deleteGlossaryTerm(term) {
-  if (!confirm('Delete "' + term + '"?')) return;
-  try {
-    await api('DELETE', '/api/glossary/' + encodeURIComponent(term));
-    toast('Term deleted.', 'success');
-    loadGlossary();
-  } catch (e) {
-    toast('Delete failed: ' + e.message, 'error');
-  }
-}
-
-/* ──────────────────────────────────────────────────────────
    KNOWLEDGE — Keywords
    API returns { keyword: content, ... } dict
    ────────────────────────────────────────────────────────── */
@@ -1751,6 +1724,111 @@ async function saveEmbeddingEdit() {
 }
 
 /* ──────────────────────────────────────────────────────────
+   SKILLS
+   ────────────────────────────────────────────────────────── */
+var skillsList = [];
+
+async function loadSkills() {
+  var container = $('#skills-list');
+  container.innerHTML = '<div class="empty-state"><span class="spinner"></span> Loading skills...</div>';
+  try {
+    skillsList = await api('GET', '/api/skills');
+    renderSkills();
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state">Failed to load skills.</div>';
+  }
+}
+
+function renderSkills() {
+  var container = $('#skills-list');
+  if (!skillsList.length) {
+    container.innerHTML = '<div class="empty-state">No skills configured. Create one to get started.</div>';
+    return;
+  }
+  var html = '';
+  skillsList.forEach(function(s) {
+    html += '<div class="k-row" style="display:flex;justify-content:space-between;align-items:flex-start">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<code style="font-size:13px;color:var(--highlight)">/' + esc(s.name) + '</code>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">' + esc(s.description) + '</div>'
+      + (s.allowed_tools ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tools: ' + esc(s.allowed_tools) + '</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0">'
+      + '<button class="k-btn-cancel" onclick="editSkill(\'' + esc(s.name) + '\')">Edit</button>'
+      + '<button class="k-btn-cancel" style="color:var(--danger)" onclick="deleteSkill(\'' + esc(s.name) + '\')">Delete</button>'
+      + '</div></div>';
+  });
+  container.innerHTML = html;
+}
+
+function showSkillForm(skill) {
+  var form = $('#skill-form');
+  form.style.display = 'block';
+  if (skill) {
+    $('#skill-original-name').value = skill.name;
+    $('#skill-name').value = skill.name;
+    $('#skill-description').value = skill.description || '';
+    $('#skill-argument-hint').value = skill.argument_hint || '';
+    $('#skill-allowed-tools').value = skill.allowed_tools || '';
+    $('#skill-body').value = skill.body || '';
+  } else {
+    $('#skill-original-name').value = '';
+    $('#skill-name').value = '';
+    $('#skill-description').value = '';
+    $('#skill-argument-hint').value = '';
+    $('#skill-allowed-tools').value = '';
+    $('#skill-body').value = '';
+  }
+  $('#skill-name').focus();
+}
+
+function hideSkillForm() {
+  $('#skill-form').style.display = 'none';
+}
+
+function editSkill(name) {
+  var skill = skillsList.find(function(s) { return s.name === name; });
+  if (skill) showSkillForm(skill);
+}
+
+async function saveSkill() {
+  var originalName = $('#skill-original-name').value;
+  var data = {
+    name: $('#skill-name').value.trim(),
+    description: $('#skill-description').value.trim(),
+    argument_hint: $('#skill-argument-hint').value.trim(),
+    allowed_tools: $('#skill-allowed-tools').value.trim(),
+    body: $('#skill-body').value,
+  };
+  if (!data.name) { toast('Skill name is required'); return; }
+  try {
+    if (originalName) {
+      await api('PUT', '/api/skills/' + encodeURIComponent(originalName), data);
+    } else {
+      await api('POST', '/api/skills', data);
+    }
+    hideSkillForm();
+    loadSkills();
+    toast('Skill saved');
+  } catch (e) {
+    toast('Failed to save skill: ' + e.message);
+  }
+}
+
+async function deleteSkill(name) {
+  if (!confirm('Delete skill /' + name + '?')) return;
+  try {
+    await api('DELETE', '/api/skills/' + encodeURIComponent(name));
+    loadSkills();
+    toast('Skill deleted');
+  } catch (e) {
+    toast('Failed to delete skill');
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
    STATUS
    ────────────────────────────────────────────────────────── */
 async function loadStatus() {
@@ -1776,7 +1854,6 @@ function renderStatus(data) {
   var defaultConn = data.default_connection || data.config && data.config.default_connection || '';
 
   // Knowledge stats
-  var glossaryCount = data.glossary_count != null ? data.glossary_count : (data.glossary ? (Array.isArray(data.glossary) ? data.glossary.length : data.glossary) : '?');
   var keywordsCount = data.keywords_count != null ? data.keywords_count : (data.keywords ? (Array.isArray(data.keywords) ? data.keywords.length : data.keywords) : '?');
   var notesLen = data.notes_length != null ? data.notes_length : (data.notes ? (typeof data.notes === 'string' ? data.notes.length : data.notes) : '?');
 
@@ -1790,7 +1867,6 @@ function renderStatus(data) {
 
   html += '<div class="stat-grid">';
   html += '<div class="stat-box"><div class="stat-value">' + esc(connCount) + '</div><div class="stat-label">Connections</div></div>';
-  html += '<div class="stat-box"><div class="stat-value">' + esc(glossaryCount) + '</div><div class="stat-label">Glossary Terms</div></div>';
   html += '<div class="stat-box"><div class="stat-value">' + esc(keywordsCount) + '</div><div class="stat-label">Keywords</div></div>';
   html += '<div class="stat-box"><div class="stat-value">' + esc(notesLen) + '</div><div class="stat-label">Notes (chars)</div></div>';
   html += '</div>';
@@ -1985,9 +2061,7 @@ async function runIngest() {
    ────────────────────────────────────────────────────────── */
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') { closePatternModal(); closeKeywordModal(); closeRuleModal(); closeNoteModal(); }
-  // Enter in keyword/glossary inline forms
   if (e.key === 'Enter' && e.target.id === 'keyword-input') addKeyword();
-  if (e.key === 'Enter' && (e.target.id === 'glossary-term' || e.target.id === 'glossary-def')) addGlossaryTerm();
 });
 
 /* ──────────────────────────────────────────────────────────

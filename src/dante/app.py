@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import html as _html
+import numbers
+import re
 import webbrowser
 from pathlib import Path
 
@@ -98,15 +100,16 @@ class App:
                         template="plotly_dark",
                     )
                     fig.update_layout(
-                        paper_bgcolor="transparent", plot_bgcolor="transparent"
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)"
                     )
-                    div_id = f"chart-{name.lower().replace(' ', '-')}"
+                    div_id = f"chart-{slugify(name, fallback='chart')}"
                     computed[name] = figure_to_inline_html(fig, div_id=div_id)
                 else:
-                    # Scalar: first cell of first row
+                    # Scalar: first cell of first row. Escape — this is warehouse
+                    # data being injected into HTML, not trusted markup.
                     if not df.empty:
                         val = df.iloc[0, 0]
-                        computed[name] = _format_scalar(val)
+                        computed[name] = _html.escape(_format_scalar(val))
                     else:
                         computed[name] = "—"
             except Exception as e:
@@ -114,10 +117,12 @@ class App:
                     f'<span class="error">Error: {_html.escape(str(e))}</span>'
                 )
 
-        # Substitute values into HTML
-        body = self._html
-        for name, value in computed.items():
-            body = body.replace(f"{{{name}}}", value)
+        # Substitute values into HTML in a single pass over the original
+        # template, so a value containing "{OTHER}" can't pull in another slot.
+        def _sub(match):
+            return computed.get(match.group(1), match.group(0))
+
+        body = re.sub(r"\{(\w+)\}", _sub, self._html)
 
         # Build full HTML document
         template_css = _get_template_css(self.template)
@@ -137,7 +142,7 @@ class App:
         """Open the rendered HTML in the default browser."""
         out_path = self.root / "outputs" / f"{self.id}.html"
         if out_path.exists():
-            webbrowser.open(f"file://{out_path.resolve()}")
+            webbrowser.open(out_path.resolve().as_uri())
 
     def refresh(self) -> str:
         """Re-execute all queries and re-render."""
@@ -158,16 +163,22 @@ def create(title: str, template: str = "dashboard", root: Path | None = None) ->
 
 
 def _format_scalar(val) -> str:
-    """Format a scalar value for display."""
-    if isinstance(val, float):
-        if abs(val) >= 1_000_000:
-            return (
-                f"${val / 1_000_000:,.1f}M" if val > 0 else f"{val / 1_000_000:,.1f}M"
-            )
-        elif abs(val) >= 1_000:
-            return f"{val:,.0f}"
+    """Format a scalar value for display.
+
+    Numeric values (Python or numpy ints/floats, but not bools) are formatted
+    consistently regardless of whether they arrive as int or float, so e.g.
+    1_500_000 and 1_500_000.0 render identically.
+    """
+    if isinstance(val, numbers.Number) and not isinstance(val, bool):
+        num = float(val)
+        if abs(num) >= 1_000_000:
+            return f"${num / 1_000_000:,.1f}M" if num > 0 else f"{num / 1_000_000:,.1f}M"
+        elif abs(num) >= 1_000:
+            return f"{num:,.0f}"
+        elif float(num).is_integer():
+            return f"{int(num)}"
         else:
-            return f"{val:,.2f}"
+            return f"{num:,.2f}"
     return str(val)
 
 
@@ -192,12 +203,13 @@ def _build_document(
     title: str, template_css: str, custom_css: str, body: str, custom_js: str
 ) -> str:
     """Build a complete HTML document."""
+    safe_title = _html.escape(title)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title}</title>
+<title>{safe_title}</title>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
 {_BASE_CSS}
@@ -206,7 +218,7 @@ def _build_document(
 </style>
 </head>
 <body>
-<header><h1>{title}</h1></header>
+<header><h1>{safe_title}</h1></header>
 <main>
 {body}
 </main>

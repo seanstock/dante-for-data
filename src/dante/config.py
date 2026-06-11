@@ -149,4 +149,13 @@ def get_connection_config(
         pw = os.environ.get(env_var)
         if pw:
             result["password"] = pw
+        else:
+            # Without this hint, the eventual driver auth failure is cryptic.
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Connection %r uses password_env=%r but that environment "
+                "variable is not set — connecting without a password.",
+                name, env_var,
+            )
     return result

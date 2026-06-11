@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -68,7 +69,12 @@ def _http_request(
             raw = resp.read()
             if not raw:
                 return None
-            return json.loads(raw)
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ConnectionError(
+                    f"Invalid JSON response from {url}: {exc}"
+                ) from exc
     except urllib.error.HTTPError as exc:
         body_text = ""
         try:
@@ -152,16 +158,18 @@ class RemoteKnowledge:
         offset: int = 0,
     ) -> list[dict]:
         """List patterns stored in the remote knowledge base."""
-        params = f"?limit={limit}&offset={offset}"
+        q = {"limit": limit, "offset": offset}
         if status is not None:
-            params += f"&status={status}"
+            q["status"] = status
+        params = "?" + urllib.parse.urlencode(q)
         result = self._request(f"/knowledge/patterns{params}", method="GET")
         return result if isinstance(result, list) else []
 
     def edit_pattern(self, pattern_id: str, **updates: Any) -> dict:
         """Partially update a remote pattern by its ID."""
+        pid = urllib.parse.quote(str(pattern_id), safe="")
         result = self._request(
-            f"/knowledge/patterns/{pattern_id}",
+            f"/knowledge/patterns/{pid}",
             method="PATCH",
             body=updates,
         )
@@ -169,9 +177,10 @@ class RemoteKnowledge:
 
     def delete_pattern(self, pattern_id: str) -> bool:
         """Delete a remote pattern by its ID. Returns True on success."""
+        pid = urllib.parse.quote(str(pattern_id), safe="")
         try:
             self._request(
-                f"/knowledge/patterns/{pattern_id}",
+                f"/knowledge/patterns/{pid}",
                 method="DELETE",
             )
             return True
@@ -179,26 +188,35 @@ class RemoteKnowledge:
             return False
 
     # ------------------------------------------------------------------
-    # Glossary
+    # Keywords
     # ------------------------------------------------------------------
 
-    def define_term(self, term: str, definition: str) -> dict:
-        """Add or update a glossary term in the remote knowledge base."""
-        payload = {"term": term, "definition": definition}
-        result = self._request("/knowledge/glossary", method="POST", body=payload)
-        return result if isinstance(result, dict) else {}
+    def list_keywords(self, scope: str | None = "org") -> list[dict]:
+        """List keywords from the remote knowledge base.
 
-    def list_terms(self, limit: int = 50, offset: int = 0) -> list[dict]:
-        """List glossary terms from the remote knowledge base."""
-        result = self._request(
-            f"/knowledge/glossary?limit={limit}&offset={offset}", method="GET"
-        )
+        Args:
+            scope: Filter by scope ("org", "personal", or None for all).
+
+        Returns:
+            List of keyword dicts with keys: keyword, content, scope, id.
+        """
+        params = "?" + urllib.parse.urlencode({"scope": scope}) if scope else ""
+        result = self._request(f"/api/keywords{params}", method="GET")
+        if isinstance(result, dict):
+            return result.get("keywords", [])
         return result if isinstance(result, list) else []
 
-    def undefine_term(self, term: str) -> bool:
-        """Remove a glossary term from the remote knowledge base."""
+    def create_keyword(self, keyword: str, content: str) -> dict:
+        """Create an org-scoped keyword in the remote knowledge base."""
+        payload = {"keyword": keyword, "content": content, "scope": "org"}
+        result = self._request("/api/keywords", method="POST", body=payload)
+        return result if isinstance(result, dict) else {}
+
+    def delete_keyword(self, keyword_id: str) -> bool:
+        """Delete a keyword from the remote knowledge base."""
+        kid = urllib.parse.quote(str(keyword_id), safe="")
         try:
-            self._request(f"/knowledge/glossary/{term}", method="DELETE")
+            self._request(f"/api/keywords/{kid}", method="DELETE")
             return True
         except ConnectionError:
             return False
@@ -245,12 +263,15 @@ def _get_remote_client(root: Path | None = None) -> RemoteKnowledge | None:
     Returns *None* if neither source has remote configuration.
     """
     for cfg in (load_project_config(root), _load_global_config()):
-        remote = cfg.get("remote", {})
-        # Skip if explicitly disabled
-        if remote.get("enabled") is False:
+        remote = cfg.get("remote") or {}
+        if not isinstance(remote, dict):
             continue
-        api_url = remote.get("api_url", "").strip()
-        api_key = remote.get("api_key", "").strip()
+        # An explicit disable at this config level terminates resolution — it is
+        # the user's deliberate opt-out and must not fall through to global.
+        if remote.get("enabled") is False:
+            return None
+        api_url = str(remote.get("api_url", "")).strip()
+        api_key = str(remote.get("api_key", "")).strip()
         if api_url and api_key:
             return RemoteKnowledge(api_url, api_key)
     return None

@@ -340,71 +340,59 @@ def test_delete_pattern_returns_false_on_connection_error():
 
 
 # ---------------------------------------------------------------------------
-# RemoteKnowledge.define_term
+# RemoteKnowledge.list_keywords
 # ---------------------------------------------------------------------------
 
 
-def test_define_term_calls_correct_url():
+def test_list_keywords_calls_correct_url():
     client = RemoteKnowledge("https://api.example.com", "sk-test")
-    expected = {"term": "ARR", "definition": "Annual Recurring Revenue"}
+    expected = {"keywords": [{"keyword": "revenue", "content": "SUM(amount)"}]}
 
     with patch("dante.remote._http_request", return_value=expected) as mock_req:
-        result = client.define_term("ARR", "Annual Recurring Revenue")
+        result = client.list_keywords(scope="org")
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/glossary",
-        method="POST",
-        body={"term": "ARR", "definition": "Annual Recurring Revenue"},
-        api_key="sk-test",
-    )
-    assert result == expected
-
-
-# ---------------------------------------------------------------------------
-# RemoteKnowledge.list_terms
-# ---------------------------------------------------------------------------
-
-
-def test_list_terms_calls_correct_url():
-    client = RemoteKnowledge("https://api.example.com", "sk-test")
-    expected = [{"term": "ARR", "definition": "Annual Recurring Revenue"}]
-
-    with patch("dante.remote._http_request", return_value=expected) as mock_req:
-        result = client.list_terms()
-
-    mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/glossary?limit=50&offset=0",
+        "https://api.example.com/api/keywords?scope=org",
         method="GET",
         body=None,
         api_key="sk-test",
     )
+    assert result == expected["keywords"]
+
+
+def test_list_keywords_returns_empty_on_unexpected_response():
+    client = RemoteKnowledge("https://api.example.com", "sk-test")
+
+    with patch("dante.remote._http_request", return_value="bad"):
+        result = client.list_keywords()
+
+    assert result == []
+
+
+def test_create_keyword_calls_correct_url():
+    client = RemoteKnowledge("https://api.example.com", "sk-test")
+    expected = {"id": "k1", "keyword": "revenue", "content": "SUM(amount)"}
+
+    with patch("dante.remote._http_request", return_value=expected) as mock_req:
+        result = client.create_keyword("revenue", "SUM(amount)")
+
+    mock_req.assert_called_once_with(
+        "https://api.example.com/api/keywords",
+        method="POST",
+        body={"keyword": "revenue", "content": "SUM(amount)", "scope": "org"},
+        api_key="sk-test",
+    )
     assert result == expected
 
 
-def test_list_terms_with_custom_pagination():
-    client = RemoteKnowledge("https://api.example.com", "sk-test")
-
-    with patch("dante.remote._http_request", return_value=[]) as mock_req:
-        client.list_terms(limit=20, offset=40)
-
-    call_url = mock_req.call_args[0][0]
-    assert "limit=20" in call_url
-    assert "offset=40" in call_url
-
-
-# ---------------------------------------------------------------------------
-# RemoteKnowledge.undefine_term
-# ---------------------------------------------------------------------------
-
-
-def test_undefine_term_calls_correct_url():
+def test_delete_keyword_calls_correct_url():
     client = RemoteKnowledge("https://api.example.com", "sk-test")
 
     with patch("dante.remote._http_request", return_value=None) as mock_req:
-        result = client.undefine_term("ARR")
+        result = client.delete_keyword("k1")
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/glossary/ARR",
+        "https://api.example.com/api/keywords/k1",
         method="DELETE",
         body=None,
         api_key="sk-test",
@@ -412,11 +400,11 @@ def test_undefine_term_calls_correct_url():
     assert result is True
 
 
-def test_undefine_term_returns_false_on_connection_error():
+def test_delete_keyword_returns_false_on_connection_error():
     client = RemoteKnowledge("https://api.example.com", "sk-test")
 
     with patch("dante.remote._http_request", side_effect=ConnectionError("404")):
-        result = client.undefine_term("ghost")
+        result = client.delete_keyword("ghost")
 
     assert result is False
 
@@ -428,7 +416,7 @@ def test_undefine_term_returns_false_on_connection_error():
 
 def test_stats_calls_correct_url():
     client = RemoteKnowledge("https://api.example.com", "sk-test")
-    expected = {"pattern_count": 42, "term_count": 7}
+    expected = {"pattern_count": 42, "keyword_count": 7}
 
     with patch("dante.remote._http_request", return_value=expected) as mock_req:
         result = client.stats()

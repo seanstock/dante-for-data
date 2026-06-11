@@ -4,7 +4,30 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 from pathlib import Path
+
+
+def _replace_managed_section(
+    existing: str, managed_block: str, start_marker: str, end_marker: str
+) -> str:
+    """Replace (or append) a marker-delimited managed section in *existing*.
+
+    Robust to: no existing block (appends), multiple existing blocks (collapses
+    to one), and markers in unexpected order (removes everything from the first
+    start marker to the last end marker). The new *managed_block* must already
+    include both markers.
+    """
+    pattern = re.compile(
+        re.escape(start_marker) + r".*?" + re.escape(end_marker),
+        re.DOTALL,
+    )
+    if pattern.search(existing):
+        # Drop every existing managed block, then re-insert one fresh copy.
+        stripped = pattern.sub("", existing).rstrip("\n")
+        return f"{stripped}\n{managed_block}\n"
+    return existing.rstrip("\n") + "\n" + managed_block + "\n"
 
 _CLAUDE_MD = """\
 # Dante Data Science Project
@@ -22,7 +45,6 @@ Use MCP tools for interactive work. Use `import dante` for scripted multi-step a
 | `dante_profile` | Row count, null rates, cardinality, distributions for a table. |
 | `dante_search` | Semantic search across embedding index + keywords. Returns matching SQL patterns. |
 | `dante_save_pattern` | Save validated SQL + generate embedding for future matching. |
-| `dante_define_term` | Add/update a business glossary entry. |
 | `dante_chart` | Generate a Plotly chart → HTML or PNG file. |
 | `dante_app_create` | Create a Data App from a template (dashboard, report, map, profile, blank). |
 | `dante_app_add_value` | Bind a SQL query to a computed value slot in a Data App. |
@@ -58,10 +80,6 @@ dante.report(title=..., sections=[...], charts=[...])   # → HTML report
 5. Checkpoint before risky steps.
 6. One script per analysis step in `analysis/`. Outputs go to `outputs/`. Data goes to `data/`.
 
-## Business Glossary
-
-@.dante/knowledge/terms.yaml
-
 ## Project Notes
 
 @.dante/knowledge/notes.yaml
@@ -86,7 +104,6 @@ You have MCP tools for database queries, charts, dashboards, and knowledge searc
 | `dante_profile` | Row count, null rates, cardinality, distributions for a table. |
 | `dante_search` | Semantic search across embedding index + keywords. Returns matching SQL patterns. |
 | `dante_save_pattern` | Save validated SQL + generate embedding for future matching. |
-| `dante_define_term` | Add/update a business glossary entry. |
 | `dante_chart` | Generate a Plotly chart → HTML or PNG file. |
 | `dante_app_create` | Create a Data App from a template (dashboard, report, map, profile, blank). |
 | `dante_app_add_value` | Bind a SQL query to a computed value slot in a Data App. |
@@ -137,10 +154,6 @@ Dashboard CSS classes: .kpis, .kpi, .kpi-label, .kpi-value, .kpi-change.up/.down
 5. **Checkpoint.** `dante_checkpoint` after each successful step
 6. **Iterate.** If stuck, `dante_rollback` and try a different approach
 7. **Report.** Compile findings
-
-## Business Glossary
-
-See `.dante/knowledge/terms.yaml` for business term definitions.
 
 ## Project Notes
 
@@ -322,10 +335,6 @@ def scaffold_project(name: str, root: Path | None = None, cursor: bool = False) 
         knowledge_dir.mkdir(exist_ok=True)
         (knowledge_dir / "patterns").mkdir(exist_ok=True)
         _write_if_not_exists(
-            knowledge_dir / "terms.yaml",
-            '# Business glossary — add terms here\n# ARR: "Annual Recurring Revenue. MRR * 12."\n',
-        )
-        _write_if_not_exists(
             knowledge_dir / "keywords.yaml",
             '# Keyword triggers — add keywords here\n# revenue: "Revenue = SUM(amount) from orders table."\n',
         )
@@ -384,7 +393,6 @@ def scaffold_in_place(root: Path | None = None, cursor: bool = False) -> Path:
         knowledge_dir = dante_dir / "knowledge"
         knowledge_dir.mkdir(exist_ok=True)
         (knowledge_dir / "patterns").mkdir(exist_ok=True)
-        _write_if_not_exists(knowledge_dir / "terms.yaml", "# Business glossary\n")
         _write_if_not_exists(knowledge_dir / "keywords.yaml", "# Keyword triggers\n")
         _write_if_not_exists(
             knowledge_dir / "notes.yaml",
@@ -452,32 +460,18 @@ def _write_cursor_rules(project: Path) -> None:
             ),
         )
 
-    # Knowledge: terms + project notes
-    knowledge_parts = []
-    terms_path = gk / "terms.yaml"
-    if terms_path.exists():
-        terms_content = terms_path.read_text(encoding="utf-8")
-        if terms_content.strip():
-            knowledge_parts.append(
-                "## Business Glossary\n\n```yaml\n" + terms_content + "\n```"
-            )
-
+    # Knowledge: project notes
     notes_path = project / ".dante" / "knowledge" / "notes.yaml"
     if notes_path.exists():
         notes_content = notes_path.read_text(encoding="utf-8")
         if notes_content.strip():
-            knowledge_parts.append(
-                "## Project Notes\n\n```yaml\n" + notes_content + "\n```"
+            _write_mdc(
+                rules_dir / "knowledge.mdc",
+                _mdc(
+                    "Project knowledge — project-specific notes",
+                    "## Project Notes\n\n```yaml\n" + notes_content + "\n```",
+                ),
             )
-
-    if knowledge_parts:
-        _write_mdc(
-            rules_dir / "knowledge.mdc",
-            _mdc(
-                "Project knowledge — business terms, glossary, and project-specific notes",
-                "\n\n".join(knowledge_parts),
-            ),
-        )
 
 
 def _mdc(description: str, content: str) -> str:
@@ -573,33 +567,20 @@ def sync_studio_rules(root: Path, cursor: bool = False) -> bool:
         lines.append("")
     lines.append("<!-- END DANTE STUDIO MANAGED SECTION -->")
 
-    managed_content = "\n".join(lines)
-
-    # Read existing content and replace/append managed section
-    existing = target.read_text(encoding="utf-8")
+    managed_content = "\n".join(lines).strip("\n")
 
     START_MARKER = "<!-- MANAGED BY DANTE STUDIO — DO NOT EDIT THIS SECTION -->"
     END_MARKER = "<!-- END DANTE STUDIO MANAGED SECTION -->"
 
-    if START_MARKER in existing:
-        # Replace existing managed section
-        start_idx = existing.index(START_MARKER)
-        before = existing[:start_idx].rstrip("\n")
+    existing = target.read_text(encoding="utf-8")
+    new_content = _replace_managed_section(
+        existing, managed_content, START_MARKER, END_MARKER
+    )
 
-        if END_MARKER in existing:
-            end_idx = existing.index(END_MARKER) + len(END_MARKER)
-            after = existing[end_idx:].lstrip("\n")
-        else:
-            after = ""
-
-        new_content = before + managed_content
-        if after:
-            new_content += "\n" + after
-    else:
-        # Append managed section
-        new_content = existing.rstrip("\n") + "\n" + managed_content
-
-    target.write_text(new_content, encoding="utf-8")
+    # Atomic write: a crash mid-write must not truncate the user's CLAUDE.md.
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(new_content, encoding="utf-8")
+    os.replace(tmp, target)
     return True
 
 

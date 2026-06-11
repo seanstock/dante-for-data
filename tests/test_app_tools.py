@@ -113,3 +113,25 @@ def test_render_no_html_set():
     result = app_tools.dante_app_render("empty-app")
     assert "Error" in result
     assert "HTML" in result
+
+
+# ---------------------------------------------------------------------------
+# ID collision handling
+# ---------------------------------------------------------------------------
+
+
+def test_same_title_creates_distinct_apps():
+    """Two apps with the same title must not overwrite each other."""
+    r1 = app_tools.dante_app_create("Sales")
+    app_tools.dante_app_add_value("sales", "x", "SELECT 1")
+    r2 = app_tools.dante_app_create("Sales")
+    with app_tools._apps_lock:
+        ids = list(app_tools._apps)
+    # Both apps registered under distinct ids.
+    assert len(ids) == 2
+    # The first app's bound value must survive (not clobbered by the second).
+    first = app_tools._apps["sales"]
+    assert "x" in first.value_names()
+    # The second create returned a different id.
+    assert "sales" in r1
+    assert r2 != r1

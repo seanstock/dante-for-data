@@ -10,31 +10,20 @@ under the `databricks` key.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
-import time
 
 import requests
 
 from dante.ingest import IngestionConfig, IngestionResult
+from dante.ingest._common import make_embedding_id, get_credentials, embed_charts
 
 logger = logging.getLogger(__name__)
 
 
-def _make_embedding_id(dashboard_id: str, element_id: str) -> str:
-    raw = f"databricks:{dashboard_id}:{element_id}"
-    return f"dbr-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
-
-
-def _get_credentials() -> dict | None:
-    from dante.config import load_global_credentials
-
-    creds = load_global_credentials().get("databricks", {})
-    if not creds.get("workspace_url") or not creds.get("token"):
-        return None
-    return creds
+def _make_id(dashboard_id: str, element_id: str) -> str:
+    return make_embedding_id("databricks", "dbr", dashboard_id, element_id)
 
 
 def _api_get(
@@ -62,7 +51,6 @@ def _parse_dashboard_charts(
     except (json.JSONDecodeError, TypeError):
         return []
 
-    # Build dataset name -> SQL lookup
     dataset_sql: dict[str, str] = {}
     for ds in definition.get("datasets", []):
         name = ds.get("name") or ds.get("displayName", "")
@@ -91,7 +79,6 @@ def _parse_dashboard_charts(
             if not title or title.lower() == "untitled":
                 continue
 
-            # Resolve dataset reference
             ds_name = ""
             for wq in widget.get("queries", []):
                 ref = wq.get("query", {}).get("datasetName")
@@ -117,15 +104,28 @@ def _parse_dashboard_charts(
     return charts
 
 
-def _fetch_charts(session: requests.Session, base_url: str, limit: int) -> list[dict]:
-    """List dashboards and extract SQL from each."""
+def _fetch_charts(
+    session: requests.Session, base_url: str, limit: int
+) -> list[dict] | None:
+    """List dashboards and extract SQL from each.
+
+    Returns None if the dashboard listing itself failed.
+    """
     data = _api_get(
         session, base_url, "/lakeview/dashboards", params={"page_size": 200}
     )
+    if data is None:
+        return None
     if not data:
         return []
 
     dashboards = data.get("dashboards", [])
+    if len(dashboards) >= 200:
+        logger.warning(
+            "Databricks returned a full page (200 dashboards) — the workspace "
+            "likely has more; results may be incomplete (pagination not yet "
+            "implemented)."
+        )
     if limit > 0:
         dashboards = dashboards[:limit]
 
@@ -164,14 +164,13 @@ def _fetch_charts(session: requests.Session, base_url: str, limit: int) -> list[
 
 async def ingest_databricks(config: IngestionConfig) -> IngestionResult:
     """Run the Databricks Lakeview ingestion pipeline."""
-    result = IngestionResult()
-
-    creds = _get_credentials()
+    creds = get_credentials("databricks", ["workspace_url", "token"])
     if not creds:
         logger.error(
             "Databricks credentials not configured. Add 'databricks' section "
             "with workspace_url and token to ~/.dante/credentials.yaml"
         )
+        result = IngestionResult()
         result.errors += 1
         return result
 
@@ -180,61 +179,19 @@ async def ingest_databricks(config: IngestionConfig) -> IngestionResult:
     session.headers["Authorization"] = f"Bearer {creds['token']}"
 
     charts = _fetch_charts(session, base_url, config.dashboard_limit)
+    if charts is None:
+        logger.error("Databricks dashboard listing failed — check workspace URL/token")
+        result = IngestionResult()
+        result.errors += 1
+        return result
     if not charts:
         logger.info("No Databricks charts found")
-        return result
+        return IngestionResult()
 
-    from dante.config import knowledge_dir
-    from dante.ingest.question_gen import generate_question
-    from dante.ingest.sql_simplifier import simplify_sql
-    from dante.knowledge.embeddings import init_db, upsert
-    from dante.knowledge.vectorize import generate_embedding
-
-    db_path = knowledge_dir() / "embeddings.db"
-    conn = init_db(db_path)
-
-    for idx, chart in enumerate(charts):
-        title = chart["element_title"]
-        emb_id = _make_embedding_id(chart["dashboard_id"], chart["element_id"])
-
-        if config.dry_run:
-            question = generate_question(title, chart["dashboard_title"])
-            logger.info("[%d/%d] %s -> %s", idx + 1, len(charts), title, question)
-            result.skipped += 1
-            continue
-
-        try:
-            question = generate_question(title, chart["dashboard_title"])
-            simplified = await simplify_sql(chart["sql"], title)
-            simplified = re.sub(r"\n{2,}", "\n", simplified)
-            embed_text = f"Question: {question}\nSQL Pattern:\n{simplified[:2000]}"
-            vector = await generate_embedding(embed_text)
-
-            upsert(
-                conn=conn,
-                id=emb_id,
-                question=question,
-                sql=simplified,
-                source="databricks",
-                dashboard=chart["dashboard_title"],
-                description=title,
-                embedding_vector=vector,
-            )
-            result.created += 1
-
-        except Exception:
-            logger.warning("Failed to process chart '%s'", title, exc_info=True)
-            result.errors += 1
-
-        if config.progress_callback:
-            config.progress_callback(
-                f"{chart['dashboard_title']} | {title}",
-                chart["dashboard_num"],
-                chart["total_dashboards"],
-            )
-
-        if (idx + 1) % 10 == 0:
-            time.sleep(0.5)
-
-    conn.close()
-    return result
+    return await embed_charts(
+        charts,
+        source="databricks",
+        config=config,
+        make_id=_make_id,
+        sql_transform=lambda s: re.sub(r"\n{2,}", "\n", s),
+    )

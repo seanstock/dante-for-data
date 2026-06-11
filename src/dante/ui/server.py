@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import uuid
 from datetime import datetime, timezone
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import yaml
 
@@ -33,6 +34,29 @@ from dante.connect import test_connection
 
 _UI_DIR = Path(__file__).parent
 _jobs_lock = threading.Lock()
+
+# Reject request bodies larger than this to avoid memory-exhaustion DoS.
+_MAX_BODY_BYTES = 1_000_000
+# A single safe path/identifier segment: no slashes, no traversal, no leading dot.
+_SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def _safe_segment(name: str) -> str | None:
+    """Validate a single URL path segment used to build a filesystem path.
+
+    Decodes percent-encoding first (the raw HTTP listener does not), then
+    rejects anything containing path separators, ``..`` traversal, or a
+    leading dot. Returns the clean segment, or ``None`` if it is unsafe.
+    """
+    decoded = unquote(name)
+    if decoded != name:
+        # A segment that changes under decoding is hiding something; reject.
+        return None
+    if not _SAFE_SEGMENT.match(name):
+        return None
+    if ".." in name or "/" in name or "\\" in name:
+        return None
+    return name
 
 
 # ── Job storage helpers ──────────────────────────────────────────────────────
@@ -126,55 +150,81 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         self.project_root = project_root or Path.cwd()
         super().__init__(*args, directory=str(_UI_DIR), **kwargs)
 
+    def _host_ok(self) -> bool:
+        """Reject requests whose Host header is not local (DNS-rebinding defense)."""
+        host = self.headers.get("Host", "")
+        hostname = host.rsplit(":", 1)[0] if host else ""
+        return hostname in ("", "127.0.0.1", "localhost", "[::1]", "::1")
+
+    def _read_json_body(self) -> dict | None:
+        """Read and parse a JSON body, enforcing the size cap.
+
+        Returns the parsed dict, or ``None`` if the body was rejected (in which
+        case an error response has already been sent).
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            self._json_response({"error": "Invalid Content-Length"}, 400)
+            return None
+        if content_length > _MAX_BODY_BYTES:
+            self._json_response({"error": "Request body too large"}, 413)
+            return None
+        raw = self.rfile.read(content_length).decode("utf-8") if content_length else "{}"
+        try:
+            return json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            return {}
+
     def do_GET(self):
+        if not self._host_ok():
+            self.send_error(403)
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 
         if path == "/" or path == "/index.html":
             self._serve_app()
+        elif path == "/favicon.ico":
+            self._serve_favicon()
         elif path.startswith("/api/"):
             self._handle_api_get(path, parsed.query)
         else:
             super().do_GET()
 
     def do_POST(self):
+        if not self._host_ok():
+            self.send_error(403)
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 
         if path.startswith("/api/"):
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = (
-                self.rfile.read(content_length).decode("utf-8")
-                if content_length
-                else "{}"
-            )
-            try:
-                data = json.loads(body) if body else {}
-            except json.JSONDecodeError:
-                data = {}
+            data = self._read_json_body()
+            if data is None:
+                return
             self._handle_api_post(path, data)
         else:
             self.send_error(404)
 
     def do_PUT(self):
+        if not self._host_ok():
+            self.send_error(403)
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 
         if path.startswith("/api/patterns/"):
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = (
-                self.rfile.read(content_length).decode("utf-8")
-                if content_length
-                else "{}"
-            )
-            try:
-                data = json.loads(body) if body else {}
-            except json.JSONDecodeError:
-                data = {}
+            data = self._read_json_body()
+            if data is None:
+                return
 
             from dante.knowledge.patterns import save_pattern, delete_pattern
 
-            old_filename = path.split("/")[-1]
+            old_filename = _safe_segment(path.split("/")[-1])
+            if old_filename is None:
+                self._json_response({"error": "Invalid pattern name"}, 400)
+                return
             question = data.get("question", "")
             sql = data.get("sql", "")
             tables = data.get("tables", [])
@@ -198,16 +248,9 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             self._json_response({"ok": True, "filename": new_path.name})
 
         elif path.startswith("/api/embeddings/"):
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = (
-                self.rfile.read(content_length).decode("utf-8")
-                if content_length
-                else "{}"
-            )
-            try:
-                data = json.loads(body) if body else {}
-            except json.JSONDecodeError:
-                data = {}
+            data = self._read_json_body()
+            if data is None:
+                return
 
             emb_id = path.split("/")[-1]
             question = data.get("question", "")
@@ -244,10 +287,43 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             conn.close()
             self._json_response({"ok": True})
 
+        elif path.startswith("/api/skills/"):
+            data = self._read_json_body()
+            if data is None:
+                return
+
+            old_name = _safe_segment(path.split("/")[-1])
+            if old_name is None:
+                self._json_response({"error": "Invalid skill name"}, 400)
+                return
+            new_name = data.get("name", old_name).strip()
+            if _safe_segment(new_name) is None:
+                self._json_response({"error": "Invalid skill name"}, 400)
+                return
+            skills_dir = self._skills_dir()
+
+            # If renamed, move the directory
+            if new_name != old_name:
+                old_dir = skills_dir / old_name
+                new_dir = skills_dir / new_name
+                if old_dir.exists():
+                    old_dir.rename(new_dir)
+                skill_dir = new_dir
+            else:
+                skill_dir = skills_dir / old_name
+
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            content = self._build_skill_md(data)
+            (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+            self._json_response({"ok": True, "name": new_name})
+
         else:
             self.send_error(404)
 
     def do_DELETE(self):
+        if not self._host_ok():
+            self.send_error(403)
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 
@@ -264,6 +340,19 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _serve_favicon(self):
+        favicon_path = _UI_DIR / "favicon.ico"
+        if not favicon_path.exists():
+            self.send_error(404)
+            return
+        content = favicon_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "image/x-icon")
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(content)
 
@@ -300,15 +389,6 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         elif path == "/api/config":
             cfg = load_project_config(self.project_root)
             self._json_response(cfg)
-
-        elif path == "/api/glossary":
-            terms_path = knowledge_dir() / "terms.yaml"
-            if terms_path.exists():
-                with open(terms_path, encoding="utf-8") as f:
-                    data = yaml.safe_load(f) or {}
-                self._json_response(data)
-            else:
-                self._json_response({})
 
         elif path == "/api/keywords":
             kw_path = knowledge_dir() / "keywords.yaml"
@@ -359,6 +439,9 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
         elif path == "/api/jobs":
             self._json_response(_load_jobs())
 
+        elif path == "/api/skills":
+            self._json_response(self._list_skills())
+
         else:
             self.send_error(404)
 
@@ -398,23 +481,6 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             cfg = load_project_config(self.project_root)
             cfg.update(data)
             save_project_config(cfg, self.project_root)
-            self._json_response({"ok": True})
-
-        elif path == "/api/glossary":
-            term = data.get("term")
-            definition = data.get("definition")
-            if not term:
-                self._json_response({"error": "Term required"}, 400)
-                return
-            terms_path = knowledge_dir() / "terms.yaml"
-            terms_path.parent.mkdir(parents=True, exist_ok=True)
-            existing = {}
-            if terms_path.exists():
-                with open(terms_path, encoding="utf-8") as f:
-                    existing = yaml.safe_load(f) or {}
-            existing[term] = definition
-            with open(terms_path, "w", encoding="utf-8") as f:
-                yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
             self._json_response({"ok": True})
 
         elif path == "/api/keywords":
@@ -538,6 +604,20 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             skip_existing = bool(data.get("skip_existing", False))
             dashboard_limit = int(data.get("dashboard_limit", 0))
 
+            # Only one ingest at a time — concurrent jobs would collide on the
+            # SQLite embeddings database.
+            with _jobs_lock:
+                active = [
+                    j for j in _load_jobs()
+                    if j.get("status") in ("running", "pending")
+                ]
+            if active:
+                self._json_response(
+                    {"error": "An ingest job is already running", "job_id": active[0]["id"]},
+                    409,
+                )
+                return
+
             job_id = uuid.uuid4().hex[:8]
             now = datetime.now(timezone.utc).isoformat()
             job = {
@@ -560,6 +640,18 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             t.start()
             self._json_response({"ok": True, "job_id": job_id})
 
+        elif path == "/api/skills":
+            name = data.get("name", "").strip()
+            if not name:
+                self._json_response({"error": "Skill name is required"}, 400)
+                return
+            skills_dir = self._skills_dir()
+            skill_dir = skills_dir / name
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            content = self._build_skill_md(data)
+            (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+            self._json_response({"ok": True, "name": name})
+
         else:
             self.send_error(404)
 
@@ -569,17 +661,6 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             conns = load_global_connections()
             conns.get("connections", {}).pop(name, None)
             save_global_connections(conns)
-            self._json_response({"ok": True})
-
-        elif path.startswith("/api/glossary/"):
-            term = path.split("/")[-1]
-            terms_path = knowledge_dir() / "terms.yaml"
-            if terms_path.exists():
-                with open(terms_path, encoding="utf-8") as f:
-                    existing = yaml.safe_load(f) or {}
-                existing.pop(term, None)
-                with open(terms_path, "w", encoding="utf-8") as f:
-                    yaml.dump(existing, f, default_flow_style=False, sort_keys=True)
             self._json_response({"ok": True})
 
         elif path.startswith("/api/keywords/"):
@@ -639,7 +720,10 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
             self._json_response({"ok": True})
 
         elif path.startswith("/api/patterns/"):
-            filename = path.split("/")[-1]
+            filename = _safe_segment(path.split("/")[-1])
+            if filename is None:
+                self._json_response({"error": "Invalid pattern name"}, 400)
+                return
             pattern_path = knowledge_dir() / "patterns" / filename
             # Delete the .sql file
             if pattern_path.exists():
@@ -662,8 +746,70 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 pass
             self._json_response({"ok": True})
 
+        elif path.startswith("/api/skills/"):
+            name = _safe_segment(path.split("/")[-1])
+            if name is None:
+                self._json_response({"error": "Invalid skill name"}, 400)
+                return
+            import shutil
+
+            skill_dir = self._skills_dir() / name
+            if skill_dir.exists():
+                shutil.rmtree(skill_dir)
+            self._json_response({"ok": True})
+
         else:
             self.send_error(404)
+
+    def _skills_dir(self) -> Path:
+        """Return the .claude/skills/ directory for the project."""
+        root = self.project_root or Path.cwd()
+        d = root / ".claude" / "skills"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _list_skills(self) -> list:
+        """Read all SKILL.md files and return as a list of dicts."""
+        skills_dir = self._skills_dir()
+        results = []
+        for skill_path in sorted(skills_dir.glob("*/SKILL.md")):
+            content = skill_path.read_text(encoding="utf-8")
+            name = skill_path.parent.name
+            # Parse YAML frontmatter
+            meta = {}
+            body = content
+            if content.startswith("---"):
+                end = content.find("---", 3)
+                if end != -1:
+                    import yaml as _yaml
+
+                    meta = _yaml.safe_load(content[3:end]) or {}
+                    body = content[end + 3:].strip()
+            results.append({
+                "name": meta.get("name", name),
+                "description": meta.get("description", ""),
+                "allowed_tools": meta.get("allowed-tools", ""),
+                "argument_hint": meta.get("argument-hint", ""),
+                "body": body,
+            })
+        return results
+
+    @staticmethod
+    def _build_skill_md(data: dict) -> str:
+        """Build a SKILL.md file from API data."""
+        lines = ["---"]
+        lines.append(f"name: {data.get('name', '')}")
+        if data.get("description"):
+            lines.append(f"description: {data['description']}")
+        if data.get("allowed_tools"):
+            lines.append(f"allowed-tools: {data['allowed_tools']}")
+        if data.get("argument_hint"):
+            lines.append(f"argument-hint: {data['argument_hint']}")
+        lines.append("---")
+        lines.append("")
+        lines.append(data.get("body", ""))
+        lines.append("")
+        return "\n".join(lines)
 
     def _get_status(self) -> dict:
         from dante.config import get_default_connection_name, get_connection_config
@@ -673,15 +819,8 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
 
         # Count knowledge (global knowledge dir shared across all projects)
         kd = knowledge_dir()
-        terms_count = 0
         keywords_count = 0
         patterns_count = 0
-
-        terms_file = kd / "terms.yaml"
-        if terms_file.exists():
-            with open(terms_file, encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-            terms_count = len(data)
 
         kw_file = kd / "keywords.yaml"
         if kw_file.exists():
@@ -728,7 +867,6 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                 "database": conn_config.get("database") if conn_config else None,
             },
             "knowledge": {
-                "glossary_terms": terms_count,
                 "keywords": keywords_count,
                 "patterns": patterns_count,
                 "embeddings": embeddings_count,
@@ -764,19 +902,11 @@ def _cleanup_stale_jobs() -> None:
 
 def run_server(port: int = 4040, project_root: Path | None = None):
     """Run the dante UI server."""
-    import signal
-
     _cleanup_stale_jobs()
 
     root = project_root or Path.cwd()
     handler = partial(DanteUIHandler, project_root=root)
     server = HTTPServer(("127.0.0.1", port), handler)
-
-    def _shutdown(sig, frame):
-        server.server_close()
-        os._exit(0)
-
-    signal.signal(signal.SIGINT, _shutdown)
 
     try:
         server.serve_forever(poll_interval=0.5)

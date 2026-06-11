@@ -9,33 +9,18 @@ in ~/.dante/credentials.yaml under the `sigma` key.
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import time
 
 import requests
 
 from dante.ingest import IngestionConfig, IngestionResult
+from dante.ingest._common import make_embedding_id, get_credentials, embed_charts
 
 logger = logging.getLogger(__name__)
 
 
-def _make_embedding_id(workbook_id: str, element_id: str) -> str:
-    raw = f"sigma:{workbook_id}:{element_id}"
-    return f"sig-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
-
-
-def _get_credentials() -> dict | None:
-    from dante.config import load_global_credentials
-
-    creds = load_global_credentials().get("sigma", {})
-    if (
-        not creds.get("host")
-        or not creds.get("client_id")
-        or not creds.get("client_secret")
-    ):
-        return None
-    return creds
+def _make_id(workbook_id: str, element_id: str) -> str:
+    return make_embedding_id("sigma", "sig", workbook_id, element_id)
 
 
 def _get_access_token(creds: dict) -> str | None:
@@ -71,9 +56,14 @@ def _api_get(host: str, token: str, path: str) -> dict | list | None:
         return None
 
 
-def _fetch_charts(host: str, token: str, limit: int) -> list[dict]:
-    """List workbooks, then fetch element-level SQL for each."""
+def _fetch_charts(host: str, token: str, limit: int) -> list[dict] | None:
+    """List workbooks, then fetch element-level SQL for each.
+
+    Returns None if the workbook listing itself failed.
+    """
     data = _api_get(host, token, "/workbooks")
+    if data is None:
+        return None
     if not data:
         return []
 
@@ -90,7 +80,6 @@ def _fetch_charts(host: str, token: str, limit: int) -> list[dict]:
         if not wb_id:
             continue
 
-        # List elements in the workbook
         elements_data = _api_get(host, token, f"/workbooks/{wb_id}/elements")
         if not elements_data:
             continue
@@ -107,7 +96,6 @@ def _fetch_charts(host: str, token: str, limit: int) -> list[dict]:
             if not elem_id or not elem_name:
                 continue
 
-            # Fetch the SQL for this specific element
             query_data = _api_get(
                 host,
                 token,
@@ -144,70 +132,32 @@ def _fetch_charts(host: str, token: str, limit: int) -> list[dict]:
 
 async def ingest_sigma(config: IngestionConfig) -> IngestionResult:
     """Run the Sigma ingestion pipeline (experimental)."""
-    result = IngestionResult()
-
-    creds = _get_credentials()
+    creds = get_credentials("sigma", ["host", "client_id", "client_secret"])
     if not creds:
         logger.error(
             "Sigma credentials not configured. Add 'sigma' section with "
             "host, client_id, and client_secret to ~/.dante/credentials.yaml"
         )
+        result = IngestionResult()
         result.errors += 1
         return result
 
     token = _get_access_token(creds)
     if not token:
+        result = IngestionResult()
         result.errors += 1
         return result
 
     charts = _fetch_charts(creds["host"], token, config.dashboard_limit)
+    if charts is None:
+        logger.error("Sigma workbook listing failed — check credentials/host")
+        result = IngestionResult()
+        result.errors += 1
+        return result
     if not charts:
         logger.info("No Sigma elements found")
-        return result
+        return IngestionResult()
 
-    from dante.config import knowledge_dir
-    from dante.ingest.question_gen import generate_question
-    from dante.ingest.sql_simplifier import simplify_sql
-    from dante.knowledge.embeddings import init_db, upsert
-    from dante.knowledge.vectorize import generate_embedding
-
-    db_path = knowledge_dir() / "embeddings.db"
-    conn = init_db(db_path)
-
-    for idx, chart in enumerate(charts):
-        title = chart["element_title"]
-        emb_id = _make_embedding_id(chart["dashboard_id"], chart["element_id"])
-
-        if config.dry_run:
-            question = generate_question(title, chart["dashboard_title"])
-            logger.info("[%d/%d] %s -> %s", idx + 1, len(charts), title, question)
-            result.skipped += 1
-            continue
-
-        try:
-            question = generate_question(title, chart["dashboard_title"])
-            simplified = await simplify_sql(chart["sql"], title)
-            embed_text = f"Question: {question}\nSQL Pattern:\n{simplified[:2000]}"
-            vector = await generate_embedding(embed_text)
-
-            upsert(
-                conn=conn,
-                id=emb_id,
-                question=question,
-                sql=simplified,
-                source="sigma",
-                dashboard=chart["dashboard_title"],
-                description=title,
-                embedding_vector=vector,
-            )
-            result.created += 1
-
-        except Exception:
-            logger.warning("Failed on element '%s'", title, exc_info=True)
-            result.errors += 1
-
-        if (idx + 1) % 10 == 0:
-            time.sleep(0.5)
-
-    conn.close()
-    return result
+    return await embed_charts(
+        charts, source="sigma", config=config, make_id=_make_id
+    )

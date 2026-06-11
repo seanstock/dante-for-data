@@ -10,7 +10,8 @@ Or via the console script entry point:
 from __future__ import annotations
 
 import asyncio
-import traceback
+import inspect as _inspect
+import logging
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -21,7 +22,6 @@ from dante.tools.chart_tools import dante_chart
 from dante.tools.knowledge_tools import (
     dante_search,
     dante_save_pattern,
-    dante_define_term,
 )
 from dante.tools.app_tools import (
     dante_app_create,
@@ -30,6 +30,8 @@ from dante.tools.app_tools import (
     dante_app_render,
 )
 from dante.tools.analyze_tools import dante_checkpoint, dante_rollback
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Tool definitions
@@ -240,28 +242,6 @@ TOOLS = [
             "required": ["question", "sql", "tables", "description"],
         },
     ),
-    Tool(
-        name="dante_define_term",
-        description=(
-            "Add or update a business term definition in the project glossary. "
-            "Useful for capturing domain-specific terminology so future queries "
-            "use consistent language."
-        ),
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "term": {
-                    "type": "string",
-                    "description": "The business term to define.",
-                },
-                "definition": {
-                    "type": "string",
-                    "description": "Plain-language definition of the term.",
-                },
-            },
-            "required": ["term", "definition"],
-        },
-    ),
     # --- App Builder ---
     Tool(
         name="dante_app_create",
@@ -442,10 +422,6 @@ _DISPATCH = {
         tables=args.get("tables", []),
         description=args["description"],
     ),
-    "dante_define_term": lambda args: dante_define_term(
-        term=args["term"],
-        definition=args["definition"],
-    ),
     "dante_app_create": lambda args: dante_app_create(
         title=args["title"],
         template=args.get("template", "dashboard"),
@@ -494,11 +470,24 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"**Error:** Unknown tool `{name}`.")]
 
     try:
-        result = handler(arguments)
+        # Handlers may be sync (blocking I/O: SQL, image export, file copy) or
+        # async. Invoke the handler in a worker thread so a slow sync call can't
+        # freeze the event loop. Async handlers just construct a coroutine there
+        # (cheap, no loop needed), which we then await back on the main loop.
+        result = await asyncio.to_thread(handler, arguments)
+        if _inspect.isawaitable(result):
+            result = await result
         return [TextContent(type="text", text=result)]
-    except Exception:
-        tb = traceback.format_exc()
-        return [TextContent(type="text", text=f"**Internal error:**\n```\n{tb}\n```")]
+    except Exception as e:
+        # Log the full traceback server-side; return a concise message to the
+        # client rather than leaking internal paths and frames.
+        logger.exception("Tool %s failed", name)
+        return [
+            TextContent(
+                type="text",
+                text=f"**Error in {name}:** {type(e).__name__}: {e}",
+            )
+        ]
 
 
 async def main() -> None:

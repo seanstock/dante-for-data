@@ -22,6 +22,9 @@ File format (e.g. what-is-our-monthly-churn-rate.sql):
 
 from __future__ import annotations
 
+import hashlib
+import logging
+import re
 from datetime import date
 from pathlib import Path
 
@@ -29,6 +32,12 @@ import yaml
 
 from dante._utils import slugify
 from dante.config import knowledge_dir
+
+logger = logging.getLogger(__name__)
+
+# Matches a closing frontmatter delimiter on its own line (not "---" appearing
+# inside a field value).
+_FM_CLOSE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
 def _patterns_dir(root: Path | None = None) -> Path:
@@ -43,13 +52,14 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
     if not content.startswith("---"):
         return {}, content
 
-    # Find the closing ---
-    end = content.find("---", 3)
-    if end == -1:
+    # Find the closing delimiter on its own line (so a value containing "---"
+    # does not truncate the frontmatter mid-field).
+    m = _FM_CLOSE.search(content, 3)
+    if m is None:
         return {}, content
 
-    fm_raw = content[3:end].strip()
-    body = content[end + 3 :].strip()
+    fm_raw = content[3 : m.start()].strip()
+    body = content[m.end() :].strip()
     fm = yaml.safe_load(fm_raw) or {}
     return fm, body
 
@@ -73,37 +83,25 @@ def save_pattern(
     source: str = "manual",
     root: Path | None = None,
 ) -> Path:
-    """Save a SQL pattern.
+    """Save a SQL pattern to a local ``.sql`` file with YAML frontmatter.
 
-    When remote is enabled, saves to Dante Studio only.
-    When local, saves to a .sql file with YAML frontmatter.
+    This is the local store only. Remote-mode routing (save to Dante Studio
+    instead) is handled one layer up in :mod:`dante.knowledge`.
 
-    Returns the path to the created file (or None if saved remotely).
+    Returns the path to the created file. If two different questions slugify to
+    the same name, a short content hash is appended so neither is overwritten.
     """
-    import logging
-
-    _logger = logging.getLogger(__name__)
-
-    # Remote mode: save to studio only, no local write
-    try:
-        from dante.remote import _get_remote_client
-
-        remote = _get_remote_client(root)
-        if remote is not None:
-            remote.save_pattern(
-                question=question,
-                sql=sql,
-                tables=tables,
-                description=description,
-            )
-            return None
-    except ImportError:
-        pass
-
-    # Local mode: save to .sql file
+    patterns_dir = _patterns_dir(root)
     slug = slugify(question)
-    filename = f"{slug}.sql"
-    path = _patterns_dir(root) / filename
+    path = patterns_dir / f"{slug}.sql"
+
+    # Disambiguate slug collisions with a *different* question so we never
+    # silently overwrite an unrelated pattern.
+    if path.exists():
+        existing_q = load_pattern(path).get("question", "")
+        if existing_q != question:
+            suffix = hashlib.sha1(question.encode("utf-8")).hexdigest()[:6]
+            path = patterns_dir / f"{slug}-{suffix}.sql"
 
     metadata = {
         "question": question,
@@ -145,7 +143,11 @@ def list_patterns(root: Path | None = None) -> list[dict]:
     patterns_dir = _patterns_dir(root)
     results = []
     for path in sorted(patterns_dir.glob("*.sql")):
-        results.append(load_pattern(path))
+        try:
+            results.append(load_pattern(path))
+        except Exception as e:
+            # One corrupt file must not break the whole listing.
+            logger.warning("Skipping unreadable pattern %s: %s", path.name, e)
     return results
 
 

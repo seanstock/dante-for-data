@@ -10,29 +10,18 @@ under the `redash` key.
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import time
 
 import requests
 
 from dante.ingest import IngestionConfig, IngestionResult
+from dante.ingest._common import make_embedding_id, get_credentials, embed_charts
 
 logger = logging.getLogger(__name__)
 
 
-def _make_embedding_id(dashboard_id: str, query_id: str) -> str:
-    raw = f"redash:{dashboard_id}:{query_id}"
-    return f"rds-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
-
-
-def _get_credentials() -> dict | None:
-    from dante.config import load_global_credentials
-
-    creds = load_global_credentials().get("redash", {})
-    if not creds.get("url") or not creds.get("api_key"):
-        return None
-    return creds
+def _make_id(dashboard_id: str, query_id: str) -> str:
+    return make_embedding_id("redash", "rds", dashboard_id, query_id)
 
 
 def _api_get(base_url: str, api_key: str, path: str) -> dict | list | None:
@@ -49,9 +38,15 @@ def _api_get(base_url: str, api_key: str, path: str) -> dict | list | None:
         return None
 
 
-def _fetch_charts(base_url: str, api_key: str, limit: int) -> list[dict]:
-    """List dashboards and collect the SQL from each widget's query."""
+def _fetch_charts(base_url: str, api_key: str, limit: int) -> list[dict] | None:
+    """List dashboards and collect the SQL from each widget's query.
+
+    Returns None if the dashboard listing itself failed (so the caller can
+    report an error instead of a clean empty run).
+    """
     data = _api_get(base_url, api_key, "/dashboards")
+    if data is None:
+        return None
     if not data:
         return []
 
@@ -84,7 +79,6 @@ def _fetch_charts(base_url: str, api_key: str, limit: int) -> list[dict]:
             if not sql or len(sql) < 50 or not q_name:
                 continue
 
-            # Avoid duplicates when the same query appears on multiple dashboards
             if q_id in seen_queries:
                 continue
             seen_queries.add(q_id)
@@ -113,65 +107,26 @@ def _fetch_charts(base_url: str, api_key: str, limit: int) -> list[dict]:
 
 async def ingest_redash(config: IngestionConfig) -> IngestionResult:
     """Run the Redash ingestion pipeline (experimental)."""
-    result = IngestionResult()
-
-    creds = _get_credentials()
+    creds = get_credentials("redash", ["url", "api_key"])
     if not creds:
         logger.error(
             "Redash credentials not configured. Add 'redash' section with "
             "url and api_key to ~/.dante/credentials.yaml"
         )
+        result = IngestionResult()
         result.errors += 1
         return result
 
     charts = _fetch_charts(creds["url"], creds["api_key"], config.dashboard_limit)
+    if charts is None:
+        logger.error("Redash dashboard listing failed — check URL/API key")
+        result = IngestionResult()
+        result.errors += 1
+        return result
     if not charts:
         logger.info("No Redash queries found")
-        return result
+        return IngestionResult()
 
-    from dante.config import knowledge_dir
-    from dante.ingest.question_gen import generate_question
-    from dante.ingest.sql_simplifier import simplify_sql
-    from dante.knowledge.embeddings import init_db, upsert
-    from dante.knowledge.vectorize import generate_embedding
-
-    db_path = knowledge_dir() / "embeddings.db"
-    conn = init_db(db_path)
-
-    for idx, chart in enumerate(charts):
-        title = chart["element_title"]
-        emb_id = _make_embedding_id(chart["dashboard_id"], chart["element_id"])
-
-        if config.dry_run:
-            question = generate_question(title, chart["dashboard_title"])
-            logger.info("[%d/%d] %s -> %s", idx + 1, len(charts), title, question)
-            result.skipped += 1
-            continue
-
-        try:
-            question = generate_question(title, chart["dashboard_title"])
-            simplified = await simplify_sql(chart["sql"], title)
-            embed_text = f"Question: {question}\nSQL Pattern:\n{simplified[:2000]}"
-            vector = await generate_embedding(embed_text)
-
-            upsert(
-                conn=conn,
-                id=emb_id,
-                question=question,
-                sql=simplified,
-                source="redash",
-                dashboard=chart["dashboard_title"],
-                description=title,
-                embedding_vector=vector,
-            )
-            result.created += 1
-
-        except Exception:
-            logger.warning("Failed on query '%s'", title, exc_info=True)
-            result.errors += 1
-
-        if (idx + 1) % 10 == 0:
-            time.sleep(0.5)
-
-    conn.close()
-    return result
+    return await embed_charts(
+        charts, source="redash", config=config, make_id=_make_id
+    )

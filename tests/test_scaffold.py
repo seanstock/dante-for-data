@@ -53,11 +53,6 @@ def test_scaffold_project_creates_config_yaml(tmp_path):
     assert (project / ".dante" / "config.yaml").exists()
 
 
-def test_scaffold_project_creates_terms_yaml(tmp_path):
-    project = scaffold_project("myproject", root=tmp_path)
-    assert (project / ".dante" / "knowledge" / "terms.yaml").exists()
-
-
 def test_scaffold_project_creates_keywords_yaml(tmp_path):
     project = scaffold_project("myproject", root=tmp_path)
     assert (project / ".dante" / "knowledge" / "keywords.yaml").exists()
@@ -186,3 +181,53 @@ def test_scaffold_in_place_no_readme(tmp_path):
     # README is optional for in-place; just don't error if it doesn't exist
     # (scaffold_project makes one, scaffold_in_place currently doesn't)
     pass  # no assertion needed — just checking it runs without error
+
+
+# ---------------------------------------------------------------------------
+# _replace_managed_section — robust marker handling
+# ---------------------------------------------------------------------------
+
+from dante.scaffold import _replace_managed_section
+
+_START = "<!-- MANAGED BY DANTE STUDIO — DO NOT EDIT THIS SECTION -->"
+_END = "<!-- END DANTE STUDIO MANAGED SECTION -->"
+
+
+def _managed(body):
+    return f"{_START}\n{body}\n{_END}"
+
+
+def test_replace_appends_when_no_marker():
+    out = _replace_managed_section("# My notes\n", _managed("v1"), _START, _END)
+    assert "# My notes" in out
+    assert out.count(_START) == 1
+    assert out.rstrip().endswith(_END)
+
+
+def test_replace_is_idempotent():
+    """Running replacement twice must not duplicate the managed block."""
+    base = "# My notes\n"
+    once = _replace_managed_section(base, _managed("v1"), _START, _END)
+    twice = _replace_managed_section(once, _managed("v2"), _START, _END)
+    assert twice.count(_START) == 1
+    assert twice.count(_END) == 1
+    assert "v2" in twice
+    assert "v1" not in twice
+    assert "# My notes" in twice
+
+
+def test_replace_handles_duplicate_blocks():
+    """A file that already has two managed blocks collapses to one on replace."""
+    base = "# Notes\n" + _managed("old1") + "\nmiddle\n" + _managed("old2") + "\n"
+    out = _replace_managed_section(base, _managed("new"), _START, _END)
+    assert out.count(_START) == 1
+    assert "new" in out
+    assert "old1" not in out and "old2" not in out
+
+
+def test_replace_preserves_user_content_after_block():
+    base = "# Top\n" + _managed("v1") + "\n# Bottom\n"
+    out = _replace_managed_section(base, _managed("v2"), _START, _END)
+    assert "# Top" in out
+    assert "# Bottom" in out
+    assert "v2" in out

@@ -24,6 +24,14 @@ def dante_app_create(title: str, template: str = "dashboard") -> str:
     """
     app = App(title=title, template=template)
     with _apps_lock:
+        # Don't silently overwrite an existing app with the same slug — give the
+        # new one a distinct id so both remain usable.
+        if app.id in _apps:
+            base = app.id
+            n = 2
+            while f"{base}-{n}" in _apps:
+                n += 1
+            app.id = f"{base}-{n}"
         _apps[app.id] = app
 
     css_help = {
@@ -39,7 +47,7 @@ def dante_app_create(title: str, template: str = "dashboard") -> str:
         f"{css_help.get(template, '')}\n\n"
         f"Next steps:\n"
         f"1. Use `dante_app_add_value` to bind SQL queries to named slots\n"
-        f"2. Set `app.html` with the HTML body containing {{SLOT_NAME}} placeholders\n"
+        f"2. Use `dante_app_set_html` to set the HTML body with {{SLOT_NAME}} placeholders\n"
         f"3. Use `dante_app_render` to execute queries and produce the final HTML"
     )
 
@@ -63,10 +71,9 @@ def dante_app_add_value(
     """
     with _apps_lock:
         app = _apps.get(app_id)
-    if app is None:
-        return f"Error: No app found with id `{app_id}`. Create one first with `dante_app_create`."
-
-    app.add_value(name, sql, format)
+        if app is None:
+            return f"Error: No app found with id `{app_id}`. Create one first with `dante_app_create`."
+        app.add_value(name, sql, format)
     return f"Value `{name}` (format: {format}) bound to app `{app_id}`. Use `{{{name}}}` in the HTML body."
 
 
@@ -84,16 +91,14 @@ def dante_app_set_html(app_id: str, html: str, css: str = "", js: str = "") -> s
     """
     with _apps_lock:
         app = _apps.get(app_id)
-    if app is None:
-        return f"Error: No app found with id `{app_id}`."
-
-    app.html = html
-    if css:
-        app.css = css
-    if js:
-        app.js = js
-
-    slots = app.value_names()
+        if app is None:
+            return f"Error: No app found with id `{app_id}`."
+        app.html = html
+        if css:
+            app.css = css
+        if js:
+            app.js = js
+        slots = app.value_names()
     return f"HTML set for app `{app_id}`. Slots bound: {', '.join(slots) if slots else 'none yet'}."
 
 
@@ -106,14 +111,14 @@ def dante_app_render(app_id: str) -> str:
     Returns:
         Path to the rendered HTML file.
     """
+    # Only the registry lookup needs the lock; render() runs SQL and must not
+    # block other app operations for its whole duration.
     with _apps_lock:
         app = _apps.get(app_id)
     if app is None:
         return f"Error: No app found with id `{app_id}`. Create one first with `dante_app_create`."
-
     if not app.html:
         return f"Error: No HTML body set for app `{app_id}`. Use `dante_app_set_html` first."
-
     try:
         path = app.render()
         return f"Dashboard rendered to `{path}`."

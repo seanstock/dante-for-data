@@ -6,7 +6,9 @@ Projects reference a named connection in .dante/config.yaml.
 
 from __future__ import annotations
 
+import logging
 import threading
+import time
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -15,8 +17,14 @@ from sqlalchemy.engine import Engine
 
 from dante.config import get_connection_config
 
+logger = logging.getLogger(__name__)
+
 _engines: dict[str, Engine] = {}
+_engine_last_used: dict[str, float] = {}
 _engines_lock = threading.Lock()
+
+# Engines idle for longer than this (seconds) are disposed on next access.
+_IDLE_TIMEOUT = 600  # 10 minutes
 
 
 def _build_url(conn: dict) -> str:
@@ -55,6 +63,34 @@ def _build_url(conn: dict) -> str:
     return url
 
 
+def _get_or_create_engine(url: str) -> Engine:
+    """Return a cached engine or create a new one.
+
+    Disposes engines that have been idle longer than _IDLE_TIMEOUT.
+    Must be called with _engines_lock held.
+    """
+    now = time.monotonic()
+
+    if url in _engines:
+        last = _engine_last_used.get(url, now)
+        if now - last > _IDLE_TIMEOUT:
+            logger.info("Disposing idle database engine (idle %.0fs)", now - last)
+            try:
+                _engines[url].dispose()
+            except Exception as e:
+                logger.debug("Engine dispose failed: %s", e)
+            del _engines[url]
+            _engine_last_used.pop(url, None)
+        else:
+            _engine_last_used[url] = now
+            return _engines[url]
+
+    engine = create_engine(url, echo=False, pool_pre_ping=True)
+    _engines[url] = engine
+    _engine_last_used[url] = now
+    return engine
+
+
 def connect(
     url: str | None = None, name: str | None = None, root: Path | None = None
 ) -> Engine:
@@ -70,9 +106,7 @@ def connect(
     """
     if url is not None:
         with _engines_lock:
-            if url not in _engines:
-                _engines[url] = create_engine(url, echo=False)
-            return _engines[url]
+            return _get_or_create_engine(url)
 
     conn = get_connection_config(name=name, root=root)
     if conn is None:
@@ -88,9 +122,19 @@ def connect(
         conn_url = _build_url(conn)
 
     with _engines_lock:
-        if conn_url not in _engines:
-            _engines[conn_url] = create_engine(conn_url, echo=False)
-        return _engines[conn_url]
+        return _get_or_create_engine(conn_url)
+
+
+def dispose_all() -> None:
+    """Dispose all cached engines. Useful for cleanup in tests or shutdown."""
+    with _engines_lock:
+        for engine in _engines.values():
+            try:
+                engine.dispose()
+            except Exception as e:
+                logger.debug("Engine dispose failed: %s", e)
+        _engines.clear()
+        _engine_last_used.clear()
 
 
 def test_connection(conn_config: dict) -> tuple[bool, str]:

@@ -196,3 +196,66 @@ def test_app_render_includes_custom_css_and_js(mock_sql, tmp_path):
     content = Path(path).read_text()
     assert ".highlight" in content
     assert "document.title" in content
+
+
+# ---------------------------------------------------------------------------
+# Security & correctness fixes
+# ---------------------------------------------------------------------------
+
+
+def _mock_sql_value(value):
+    def _f(query, root=None):
+        import pandas as pd
+        return pd.DataFrame({"v": [value]})
+    return _f
+
+
+def test_render_scalar_value_is_html_escaped(tmp_path):
+    """A scalar string from the warehouse must be HTML-escaped in the output."""
+    from unittest.mock import patch
+    app = App("XSS Test", template="blank", root=tmp_path)
+    app.html = "<div>{evil}</div>"
+    app.add_value("evil", "SELECT x", format="scalar")
+    payload = '<script>alert(1)</script>'
+    with patch("dante.app.run_sql", side_effect=_mock_sql_value(payload)):
+        path = app.render()
+    content = Path(path).read_text()
+    assert "<script>alert(1)</script>" not in content
+    assert "&lt;script&gt;" in content
+
+
+def test_render_substitution_is_single_pass(tmp_path):
+    """A value containing another slot's placeholder must not be re-substituted."""
+    from unittest.mock import patch
+    app = App("Subst Test", template="blank", root=tmp_path)
+    app.html = "<div>{a}</div><div>{b}</div>"
+
+    def _sql(query, root=None):
+        import pandas as pd
+        # 'a' returns the literal text "{b}", 'b' returns "SECRET"
+        return pd.DataFrame({"v": ["{b}" if "qa" in query else "SECRET"]})
+
+    app.add_value("a", "SELECT qa", format="scalar")
+    app.add_value("b", "SELECT qb", format="scalar")
+    with patch("dante.app.run_sql", side_effect=_sql):
+        path = app.render()
+    content = Path(path).read_text()
+    # The literal "{b}" from a's value must survive, not be replaced by SECRET.
+    assert "{b}" in content
+    assert content.count("SECRET") == 1
+
+
+def test_format_scalar_large_integer_consistent_with_float():
+    """A large int should format like the equivalent float, not as raw digits."""
+    assert _format_scalar(1_500_000) == _format_scalar(1_500_000.0)
+
+
+def test_document_title_is_escaped(tmp_path):
+    from unittest.mock import patch
+    app = App("<script>evil</script>", template="blank", root=tmp_path)
+    app.html = "<p>hi</p>"
+    with patch("dante.app.run_sql", side_effect=_mock_sql):
+        path = app.render()
+    content = Path(path).read_text()
+    assert "<script>evil</script>" not in content
+    assert "&lt;script&gt;" in content

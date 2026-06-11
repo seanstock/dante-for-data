@@ -21,7 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 def _db_path(root: Path | None = None) -> Path:
+    """Path to the embeddings SQLite database."""
     return knowledge_dir(root) / "embeddings.db"
+
+
+def _filter_by_threshold(results: list[dict], threshold: float) -> list[dict]:
+    """Drop results whose similarity is below *threshold* (missing → keep)."""
+    return [r for r in results if r.get("similarity", 1.0) >= threshold]
 
 
 async def search_async(
@@ -30,18 +36,23 @@ async def search_async(
     threshold: float = 0.3,
     root: Path | None = None,
 ) -> list[dict]:
-    # Remote mode: search studio only, no local fallback
-    from dante.remote import _get_remote_client
-
-    remote = _get_remote_client(root)
-    if remote is not None:
-        return remote.search(query, top_k=top_k)
-
     """Search keywords and embeddings, merge results.
 
     Returns a list of dicts, each with keys:
         question, sql, source, dashboard, similarity, keyword_match, description
+
+    In remote mode, delegates to Studio (off the event loop) and applies the
+    same *threshold* filter client-side.
     """
+    import asyncio
+
+    from dante.remote import _get_remote_client
+
+    remote = _get_remote_client(root)
+    if remote is not None:
+        results = await asyncio.to_thread(remote.search, query, top_k=top_k)
+        return _filter_by_threshold(results, threshold)[:top_k]
+
     results: list[dict] = []
     seen_ids: set[str] = set()
 
@@ -117,6 +128,7 @@ def search(
 
     remote = _get_remote_client(root)
     if remote is not None:
-        return remote.search(query, top_k=top_k)
+        results = remote.search(query, top_k=top_k)
+        return _filter_by_threshold(results, threshold)[:top_k]
 
     return run_async(search_async(query, top_k=top_k, threshold=threshold, root=root))

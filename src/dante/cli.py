@@ -159,17 +159,8 @@ def status(as_json: bool):
 
     # Count knowledge artifacts
     knowledge_dir = pd / "knowledge"
-    terms_count = 0
     keywords_count = 0
     patterns_count = 0
-
-    terms_file = knowledge_dir / "terms.yaml"
-    if terms_file.exists():
-        import yaml
-
-        with open(terms_file, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        terms_count = len([k for k in data if not str(k).startswith("#")])
 
     keywords_file = knowledge_dir / "keywords.yaml"
     if keywords_file.exists():
@@ -209,7 +200,6 @@ def status(as_json: bool):
             "database": conn_config.get("database") if conn_config else None,
         },
         "knowledge": {
-            "glossary_terms": terms_count,
             "keywords": keywords_count,
             "patterns": patterns_count,
             "embeddings": embeddings_count,
@@ -232,7 +222,6 @@ def status(as_json: bool):
             click.echo("  Not configured. Run 'dante ui' to set up.")
         click.echo()
         click.echo("Knowledge:")
-        click.echo(f"  Glossary terms:  {terms_count}")
         click.echo(f"  Keywords:        {keywords_count}")
         click.echo(f"  SQL patterns:    {patterns_count}")
         click.echo(f"  Embeddings:      {embeddings_count}")

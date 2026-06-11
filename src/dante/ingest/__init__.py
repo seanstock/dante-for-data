@@ -49,6 +49,7 @@ class IngestionResult:
     updated: int = 0
     skipped: int = 0
     errors: int = 0
+    aborted: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -56,6 +57,7 @@ class IngestionResult:
             "updated": self.updated,
             "skipped": self.skipped,
             "errors": self.errors,
+            "aborted": self.aborted,
         }
 
 
@@ -135,3 +137,4 @@ def _merge_results(target: IngestionResult, source: IngestionResult):
     target.updated += source.updated
     target.skipped += source.skipped
     target.errors += source.errors
+    target.aborted = target.aborted or source.aborted

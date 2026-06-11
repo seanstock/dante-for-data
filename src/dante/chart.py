@@ -42,8 +42,6 @@ def chart(
         Path to the generated file.
     """
     outputs_dir = ensure_outputs_dir(root)
-    root = outputs_dir.parent
-
     template = _DARK_TEMPLATE if theme == "dark" else _LIGHT_TEMPLATE
 
     if isinstance(data, dict):
@@ -118,9 +116,8 @@ def _df_to_figure(
             df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title
         )
     elif kind == "scatter":
-        fig = px.scatter(
-            df, x=x, y=y if isinstance(y, str) else (y[0] if y else None), title=title
-        )
+        # px.scatter accepts a list of y columns (wide-form), so pass it through.
+        fig = px.scatter(df, x=x, y=y, title=title)
     elif kind == "line":
         fig = px.line(df, x=x, y=y, title=title)
     else:  # bar

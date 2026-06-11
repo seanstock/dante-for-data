@@ -37,6 +37,24 @@ def ensure_outputs_dir(root: Path | None = None) -> Path:
     return outputs_dir
 
 
+def dataframe_to_markdown(df: Any, empty_msg: str = "_No results._") -> str:
+    """Convert a pandas DataFrame to a markdown table string.
+
+    Args:
+        df: A pandas DataFrame.
+        empty_msg: Message to return when the DataFrame is empty.
+    """
+    if df.empty:
+        return empty_msg
+
+    headers = list(df.columns)
+    lines = ["| " + " | ".join(str(h) for h in headers) + " |"]
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for _, row in df.iterrows():
+        lines.append("| " + " | ".join(str(v) for v in row) + " |")
+    return "\n".join(lines)
+
+
 def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """Run a coroutine from synchronous code.
 

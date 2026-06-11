@@ -10,32 +10,20 @@ under the `mode` key, plus a `workspace` field.
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import time
 
 import requests
 
 from dante.ingest import IngestionConfig, IngestionResult
+from dante.ingest._common import make_embedding_id, get_credentials, embed_charts
 
 logger = logging.getLogger(__name__)
 
 _API_BASE = "https://app.mode.com/api"
 
 
-def _make_embedding_id(report_token: str, query_token: str) -> str:
-    raw = f"mode:{report_token}:{query_token}"
-    return f"mode-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
-
-
-def _get_credentials() -> dict | None:
-    """Load Mode credentials from Dante config."""
-    from dante.config import load_global_credentials
-
-    creds = load_global_credentials().get("mode", {})
-    if not creds.get("token") or not creds.get("secret") or not creds.get("workspace"):
-        return None
-    return creds
+def _make_id(report_token: str, query_token: str) -> str:
+    return make_embedding_id("mode", "mode", report_token, query_token)
 
 
 def _api_get(session: requests.Session, path: str) -> dict | list | None:
@@ -49,9 +37,16 @@ def _api_get(session: requests.Session, path: str) -> dict | list | None:
         return None
 
 
-def _fetch_charts(session: requests.Session, workspace: str, limit: int) -> list[dict]:
-    """List reports and extract query SQL from each."""
+def _fetch_charts(
+    session: requests.Session, workspace: str, limit: int
+) -> list[dict] | None:
+    """List reports and extract query SQL from each.
+
+    Returns None if the report listing itself failed.
+    """
     data = _api_get(session, f"/{workspace}/reports")
+    if data is None:
+        return None
     if not data:
         return []
 
@@ -110,14 +105,13 @@ def _fetch_charts(session: requests.Session, workspace: str, limit: int) -> list
 
 async def ingest_mode(config: IngestionConfig) -> IngestionResult:
     """Run the Mode ingestion pipeline (experimental)."""
-    result = IngestionResult()
-
-    creds = _get_credentials()
+    creds = get_credentials("mode", ["token", "secret", "workspace"])
     if not creds:
         logger.error(
             "Mode credentials not configured. Add 'mode' section with "
             "token, secret, and workspace to ~/.dante/credentials.yaml"
         )
+        result = IngestionResult()
         result.errors += 1
         return result
 
@@ -126,53 +120,15 @@ async def ingest_mode(config: IngestionConfig) -> IngestionResult:
     session.headers["Accept"] = "application/json"
 
     charts = _fetch_charts(session, creds["workspace"], config.dashboard_limit)
+    if charts is None:
+        logger.error("Mode report listing failed — check token/workspace")
+        result = IngestionResult()
+        result.errors += 1
+        return result
     if not charts:
         logger.info("No Mode queries found")
-        return result
+        return IngestionResult()
 
-    from dante.config import knowledge_dir
-    from dante.ingest.question_gen import generate_question
-    from dante.ingest.sql_simplifier import simplify_sql
-    from dante.knowledge.embeddings import init_db, upsert
-    from dante.knowledge.vectorize import generate_embedding
-
-    db_path = knowledge_dir() / "embeddings.db"
-    conn = init_db(db_path)
-
-    for idx, chart in enumerate(charts):
-        title = chart["element_title"]
-        emb_id = _make_embedding_id(chart["dashboard_id"], chart["element_id"])
-
-        if config.dry_run:
-            question = generate_question(title, chart["dashboard_title"])
-            logger.info("[%d/%d] %s -> %s", idx + 1, len(charts), title, question)
-            result.skipped += 1
-            continue
-
-        try:
-            question = generate_question(title, chart["dashboard_title"])
-            simplified = await simplify_sql(chart["sql"], title)
-            embed_text = f"Question: {question}\nSQL Pattern:\n{simplified[:2000]}"
-            vector = await generate_embedding(embed_text)
-
-            upsert(
-                conn=conn,
-                id=emb_id,
-                question=question,
-                sql=simplified,
-                source="mode",
-                dashboard=chart["dashboard_title"],
-                description=title,
-                embedding_vector=vector,
-            )
-            result.created += 1
-
-        except Exception:
-            logger.warning("Failed on query '%s'", title, exc_info=True)
-            result.errors += 1
-
-        if (idx + 1) % 10 == 0:
-            time.sleep(0.5)
-
-    conn.close()
-    return result
+    return await embed_charts(
+        charts, source="mode", config=config, make_id=_make_id
+    )
