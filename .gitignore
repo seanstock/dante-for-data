@@ -15,3 +15,10 @@ build/
 .env.*
 *.sqlite3
 *.db
+
+# Local analysis state
+.dante/checkpoints/
+
+# References private Dante Studio internals — do not publish (repo is public)
+codemap_studio.md
+CLAUDE.md

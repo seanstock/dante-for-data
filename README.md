@@ -5,7 +5,7 @@ A data science workbench for Claude Code. Gives Claude MCP tools to query databa
 ## What it does
 
 - **SQL tools** — execute queries, list tables, describe schemas, profile data
-- **Knowledge** — save validated SQL patterns with embeddings, maintain a business glossary, write project notes
+- **Knowledge** — save validated SQL patterns with embeddings, keyword triggers, and project notes
 - **Charts & apps** — generate Plotly charts and self-contained HTML data apps
 - **Embedding ingestion** — bulk import SQL patterns from Looker, Databricks, or your warehouse
 - **Management UI** — web UI to configure connections, credentials, and knowledge
@@ -58,7 +58,6 @@ my-project/
 ├── .dante/
 │   ├── config.yaml            # Default connection
 │   ├── knowledge/
-│   │   ├── terms.yaml         # Business glossary
 │   │   ├── keywords.yaml      # Keyword → SQL hint mappings
 │   │   ├── notes.md           # Free-form notes Claude reads each session
 │   │   └── patterns/          # Saved SQL patterns (.sql files)
@@ -81,7 +80,6 @@ Claude gets these tools when it opens the project:
 | `dante_profile` | Row count, null rates, cardinality, distributions. |
 | `dante_search` | Semantic search across embeddings + keywords. Returns matching SQL. |
 | `dante_save_pattern` | Save validated SQL and generate an embedding for future search. |
-| `dante_define_term` | Add or update a business glossary entry. |
 | `dante_chart` | Generate a Plotly chart → HTML or PNG. |
 | `dante_app_create` | Create a data app from a template (dashboard, report, map, profile, blank). |
 | `dante_app_add_value` | Bind a SQL query to a computed value slot in a data app. |
@@ -146,7 +144,7 @@ dante ui           # opens at http://localhost:4040
 dante ui --port 8080
 ```
 
-Configure database connections, API credentials, glossary terms, and keywords. Connections are stored globally (`~/.dante/`) so the same connection works across all your projects.
+Configure database connections, API credentials, and keywords. Connections are stored globally (`~/.dante/`) so the same connection works across all your projects.
 
 ## CLI reference
 
