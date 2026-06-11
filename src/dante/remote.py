@@ -9,8 +9,8 @@ Configuration (either location works; project config takes priority):
 
     # .dante/config.yaml  OR  ~/.dante/config.yaml
     remote:
-      api_url: https://api.example.com
-      api_key: sk-...
+      api_url: https://studio.example.com   # server base URL, no path suffix
+      api_key: dk_...                       # Dante Studio API key (dk_ prefix)
 """
 
 from __future__ import annotations
@@ -131,7 +131,10 @@ class RemoteKnowledge:
         requests originating from the Python library vs. other clients.
         """
         payload = {"query": query, "top_k": top_k, "source": "library"}
-        result = self._request("/knowledge/search", method="POST", body=payload)
+        result = self._request("/api/knowledge/search", method="POST", body=payload)
+        # Studio wraps results: {"results": [...], "total": n}
+        if isinstance(result, dict):
+            return result.get("results", [])
         return result if isinstance(result, list) else []
 
     def save_pattern(
@@ -148,7 +151,7 @@ class RemoteKnowledge:
             "tables": tables or [],
             "description": description,
         }
-        result = self._request("/knowledge/patterns", method="POST", body=payload)
+        result = self._request("/api/knowledge/patterns", method="POST", body=payload)
         return result if isinstance(result, dict) else {}
 
     def list_patterns(
@@ -162,14 +165,17 @@ class RemoteKnowledge:
         if status is not None:
             q["status"] = status
         params = "?" + urllib.parse.urlencode(q)
-        result = self._request(f"/knowledge/patterns{params}", method="GET")
+        result = self._request(f"/api/knowledge/patterns{params}", method="GET")
+        # Studio wraps results: {"patterns": [...], "total": n}
+        if isinstance(result, dict):
+            return result.get("patterns", [])
         return result if isinstance(result, list) else []
 
     def edit_pattern(self, pattern_id: str, **updates: Any) -> dict:
         """Partially update a remote pattern by its ID."""
         pid = urllib.parse.quote(str(pattern_id), safe="")
         result = self._request(
-            f"/knowledge/patterns/{pid}",
+            f"/api/knowledge/patterns/{pid}",
             method="PATCH",
             body=updates,
         )
@@ -180,7 +186,7 @@ class RemoteKnowledge:
         pid = urllib.parse.quote(str(pattern_id), safe="")
         try:
             self._request(
-                f"/knowledge/patterns/{pid}",
+                f"/api/knowledge/patterns/{pid}",
                 method="DELETE",
             )
             return True
@@ -227,7 +233,7 @@ class RemoteKnowledge:
 
     def stats(self) -> dict:
         """Return statistics from the remote knowledge base."""
-        result = self._request("/knowledge/stats", method="GET")
+        result = self._request("/api/knowledge/stats", method="GET")
         return result if isinstance(result, dict) else {}
 
 

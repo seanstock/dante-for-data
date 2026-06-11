@@ -167,7 +167,7 @@ def test_search_calls_correct_url():
         results = client.search("churn rate", top_k=5)
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/search",
+        "https://api.example.com/api/knowledge/search",
         method="POST",
         body={"query": "churn rate", "top_k": 5, "source": "library"},
         api_key="sk-test",
@@ -223,7 +223,7 @@ def test_save_pattern_calls_correct_url():
         )
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/patterns",
+        "https://api.example.com/api/knowledge/patterns",
         method="POST",
         body={
             "question": "What is revenue?",
@@ -269,7 +269,7 @@ def test_list_patterns_calls_correct_url():
         result = client.list_patterns()
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/patterns?limit=50&offset=0",
+        "https://api.example.com/api/knowledge/patterns?limit=50&offset=0",
         method="GET",
         body=None,
         api_key="sk-test",
@@ -302,7 +302,7 @@ def test_edit_pattern_calls_correct_url():
         result = client.edit_pattern("p1", description="updated")
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/patterns/p1",
+        "https://api.example.com/api/knowledge/patterns/p1",
         method="PATCH",
         body={"description": "updated"},
         api_key="sk-test",
@@ -322,7 +322,7 @@ def test_delete_pattern_calls_correct_url():
         result = client.delete_pattern("p1")
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/patterns/p1",
+        "https://api.example.com/api/knowledge/patterns/p1",
         method="DELETE",
         body=None,
         api_key="sk-test",
@@ -422,7 +422,7 @@ def test_stats_calls_correct_url():
         result = client.stats()
 
     mock_req.assert_called_once_with(
-        "https://api.example.com/knowledge/stats",
+        "https://api.example.com/api/knowledge/stats",
         method="GET",
         body=None,
         api_key="sk-test",
@@ -468,3 +468,30 @@ def test_http_request_raises_connection_error_on_url_error():
     with patch("urllib.request.urlopen", side_effect=url_err):
         with pytest.raises(ConnectionError, match="Network error"):
             _http_request("http://x.com/path", api_key="k")
+
+
+# ---------------------------------------------------------------------------
+# Studio response-envelope compatibility
+# ---------------------------------------------------------------------------
+
+
+def test_search_unwraps_results_envelope():
+    """Studio returns {"results": [...], "total": n} — the client must unwrap it."""
+    client = RemoteKnowledge("https://api.example.com", "dk-test")
+    envelope = {"results": [{"question": "Q?", "similarity": 0.9}], "total": 1}
+
+    with patch("dante.remote._http_request", return_value=envelope):
+        results = client.search("anything")
+
+    assert results == [{"question": "Q?", "similarity": 0.9}]
+
+
+def test_list_patterns_unwraps_patterns_envelope():
+    """Studio returns {"patterns": [...], "total": n} — the client must unwrap it."""
+    client = RemoteKnowledge("https://api.example.com", "dk-test")
+    envelope = {"patterns": [{"id": "p1"}, {"id": "p2"}], "total": 2}
+
+    with patch("dante.remote._http_request", return_value=envelope):
+        result = client.list_patterns()
+
+    assert result == [{"id": "p1"}, {"id": "p2"}]
