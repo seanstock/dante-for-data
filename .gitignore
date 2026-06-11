@@ -22,3 +22,7 @@ build/
 # References private Dante Studio internals — do not publish (repo is public)
 codemap_studio.md
 CLAUDE.md
+
+# Local working docs — not for the public repo
+security_to_do.md
+PUBLISHING.md
