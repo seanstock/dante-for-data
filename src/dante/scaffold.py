@@ -29,6 +29,15 @@ def _replace_managed_section(
         return f"{stripped}\n{managed_block}\n"
     return existing.rstrip("\n") + "\n" + managed_block + "\n"
 
+
+def _remove_managed_section(existing: str, start_marker: str, end_marker: str) -> str:
+    """Strip every marker-delimited managed section from *existing*."""
+    pattern = re.compile(
+        re.escape(start_marker) + r".*?" + re.escape(end_marker),
+        re.DOTALL,
+    )
+    return pattern.sub("", existing).rstrip("\n") + "\n"
+
 _CLAUDE_MD = """\
 # Dante Data Science Project
 
@@ -83,10 +92,6 @@ dante.report(title=..., sections=[...], charts=[...])   # → HTML report
 ## Project Notes
 
 @.dante/knowledge/notes.yaml
-
-## Rules
-
-@~/.dante/knowledge/rules.yaml
 """
 
 _CURSORRULES = """\
@@ -490,6 +495,114 @@ def _write_if_not_exists(path: Path, content: str) -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+
+
+GLOBAL_RULES_START = "<!-- BEGIN DANTE GLOBAL RULES — MANAGED, DO NOT EDIT -->"
+GLOBAL_RULES_END = "<!-- END DANTE GLOBAL RULES -->"
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write *content* to *path* without risking a truncated file on crash."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _load_global_rules() -> dict[str, str] | None:
+    """Read ~/.dante/knowledge/rules.yaml into a name -> content mapping.
+
+    Returns None when the file is missing or cannot be used, so callers can
+    tell "no rules to sync" apart from "the user has cleared their rules".
+    """
+    import yaml
+
+    from dante.config import knowledge_dir as global_knowledge_dir
+
+    log = logging.getLogger(__name__)
+    rules_path = global_knowledge_dir() / "rules.yaml"
+    if not rules_path.exists():
+        return None
+
+    try:
+        data = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        log.warning("Could not parse %s: %s", rules_path, e)
+        return None
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        log.warning("%s must be a mapping of rule name to text", rules_path)
+        return None
+
+    return {
+        str(name): str(content).strip()
+        for name, content in data.items()
+        if str(content).strip()
+    }
+
+
+def _render_rules_markdown(rules: dict[str, str]) -> str:
+    return "\n\n".join(
+        f"### {name}\n\n{content}" for name, content in sorted(rules.items())
+    )
+
+
+def sync_global_rules() -> bool:
+    """Regenerate the global rule files from ~/.dante/knowledge/rules.yaml.
+
+    Rules are meant to apply in every directory, so this writes two always-on
+    global targets rather than per-project copies:
+
+      - ~/.claude/CLAUDE.md         — a marker-delimited managed section
+      - ~/.cursor/rules/dante-rules.mdc — one concat file, alwaysApply: true
+
+    Both are fully regenerated on every call, so a rule deleted from rules.yaml
+    also disappears from the targets. Content outside the CLAUDE.md markers is
+    preserved. Returns False if rules.yaml is missing or unreadable.
+    """
+    rules = _load_global_rules()
+    if rules is None:
+        return False
+
+    body = _render_rules_markdown(rules)
+    home = Path.home()
+
+    # --- Claude Code: managed section inside the global CLAUDE.md ---
+    claude_md = home / ".claude" / "CLAUDE.md"
+    existing = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
+    if body:
+        block = (
+            f"{GLOBAL_RULES_START}\n"
+            f"## Dante Global Rules\n\n"
+            f"{body}\n"
+            f"{GLOBAL_RULES_END}"
+        )
+        if existing.strip():
+            new_content = _replace_managed_section(
+                existing, block, GLOBAL_RULES_START, GLOBAL_RULES_END
+            )
+        else:
+            new_content = block + "\n"
+        _atomic_write(claude_md, new_content)
+    elif existing:
+        _atomic_write(
+            claude_md,
+            _remove_managed_section(existing, GLOBAL_RULES_START, GLOBAL_RULES_END),
+        )
+
+    # --- Cursor: a single always-applied rules file ---
+    mdc_path = home / ".cursor" / "rules" / "dante-rules.mdc"
+    if body:
+        _atomic_write(
+            mdc_path,
+            _mdc("Dante global rules — brand, conventions, preferences", body),
+        )
+    elif mdc_path.exists():
+        mdc_path.unlink()
+
+    return True
 
 
 def sync_studio_rules(root: Path, cursor: bool = False) -> bool:
