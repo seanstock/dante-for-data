@@ -64,9 +64,14 @@ def launch(name: str | None, ui: bool, cursor: bool):
     click.echo("  outputs/            — Generated charts, dashboards, reports")
     click.echo()
 
-    # Sync org rules from Dante Studio if remote is configured
-    from dante.scaffold import sync_studio_rules
+    # Global rules apply in every directory, so sync both targets regardless
+    # of this project's --cursor flag.
+    from dante.scaffold import sync_global_rules, sync_studio_rules
 
+    if sync_global_rules():
+        click.echo("  Synced global rules to Claude Code + Cursor")
+
+    # Sync org rules from Dante Studio if remote is configured
     if sync_studio_rules(project_path, cursor=cursor):
         click.echo("  Synced organization rules from Dante Studio")
 

@@ -564,6 +564,9 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                     sort_keys=True,
                     allow_unicode=True,
                 )
+            from dante.scaffold import sync_global_rules
+
+            sync_global_rules()
             self._json_response({"ok": True})
 
         elif path.startswith("/api/embeddings/"):
@@ -706,6 +709,9 @@ class DanteUIHandler(SimpleHTTPRequestHandler):
                         sort_keys=True,
                         allow_unicode=True,
                     )
+                from dante.scaffold import sync_global_rules
+
+                sync_global_rules()
             self._json_response({"ok": True})
 
         elif path.startswith("/api/embeddings/"):

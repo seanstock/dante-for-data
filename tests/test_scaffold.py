@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 
 
-from dante.scaffold import scaffold_project, scaffold_in_place
+from dante.scaffold import (
+    GLOBAL_RULES_END,
+    GLOBAL_RULES_START,
+    scaffold_in_place,
+    scaffold_project,
+    sync_global_rules,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -231,3 +237,122 @@ def test_replace_preserves_user_content_after_block():
     assert "# Top" in out
     assert "# Bottom" in out
     assert "v2" in out
+
+
+# ---------------------------------------------------------------------------
+# sync_global_rules — global targets for Claude Code + Cursor
+# ---------------------------------------------------------------------------
+
+
+def _write_rules(rules: str) -> Path:
+    """Write ~/.dante/knowledge/rules.yaml (fake home, via isolate_home)."""
+    path = Path.home() / ".dante" / "knowledge" / "rules.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(rules, encoding="utf-8")
+    return path
+
+
+def _claude_md() -> Path:
+    return Path.home() / ".claude" / "CLAUDE.md"
+
+
+def _cursor_mdc() -> Path:
+    return Path.home() / ".cursor" / "rules" / "dante-rules.mdc"
+
+
+def test_sync_global_rules_writes_cursor_file():
+    _write_rules('design_system: "Dark mode, #111111 background."\n')
+    assert sync_global_rules() is True
+    text = _cursor_mdc().read_text(encoding="utf-8")
+    assert "alwaysApply: true" in text
+    assert "Dark mode, #111111 background." in text
+    assert "design_system" in text
+
+
+def test_sync_global_rules_writes_claude_managed_section():
+    _write_rules('design_system: "Dark mode."\n')
+    assert sync_global_rules() is True
+    text = _claude_md().read_text(encoding="utf-8")
+    assert "Dark mode." in text
+    assert text.count(GLOBAL_RULES_START) == 1
+    assert text.count(GLOBAL_RULES_END) == 1
+
+
+def test_sync_global_rules_preserves_handwritten_claude_md():
+    claude = _claude_md()
+    claude.parent.mkdir(parents=True, exist_ok=True)
+    claude.write_text("# My own notes\n\nKeep me.\n", encoding="utf-8")
+    _write_rules('design_system: "Dark mode."\n')
+    sync_global_rules()
+    text = claude.read_text(encoding="utf-8")
+    assert "# My own notes" in text
+    assert "Keep me." in text
+    assert "Dark mode." in text
+
+
+def test_sync_global_rules_deleted_rule_disappears_from_both():
+    _write_rules('keep_me: "Stays."\ndelete_me: "Goes away."\n')
+    sync_global_rules()
+    assert "Goes away." in _claude_md().read_text(encoding="utf-8")
+    assert "Goes away." in _cursor_mdc().read_text(encoding="utf-8")
+
+    _write_rules('keep_me: "Stays."\n')
+    sync_global_rules()
+    claude_text = _claude_md().read_text(encoding="utf-8")
+    cursor_text = _cursor_mdc().read_text(encoding="utf-8")
+    assert "Goes away." not in claude_text
+    assert "Goes away." not in cursor_text
+    assert "Stays." in claude_text
+    assert "Stays." in cursor_text
+
+
+def test_sync_global_rules_is_idempotent():
+    _write_rules('design_system: "Dark mode."\n')
+    sync_global_rules()
+    sync_global_rules()
+    text = _claude_md().read_text(encoding="utf-8")
+    assert text.count(GLOBAL_RULES_START) == 1
+    assert text.count("Dark mode.") == 1
+
+
+def test_sync_global_rules_empty_rules_clears_targets():
+    _write_rules('design_system: "Dark mode."\n')
+    sync_global_rules()
+    claude = _claude_md()
+    claude.write_text(
+        "# Mine\n\n" + claude.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+
+    _write_rules("# all rules removed\n")
+    assert sync_global_rules() is True
+    text = claude.read_text(encoding="utf-8")
+    assert "Dark mode." not in text
+    assert GLOBAL_RULES_START not in text
+    assert "# Mine" in text
+    assert not _cursor_mdc().exists()
+
+
+def test_sync_global_rules_no_rules_file_is_noop():
+    assert sync_global_rules() is False
+    assert not _claude_md().exists()
+    assert not _cursor_mdc().exists()
+
+
+def test_sync_global_rules_malformed_yaml_returns_false():
+    _write_rules("this: is: not: valid: yaml:\n")
+    assert sync_global_rules() is False
+
+
+def test_sync_global_rules_creates_claude_md_when_absent():
+    _write_rules('design_system: "Dark mode."\n')
+    assert not _claude_md().exists()
+    sync_global_rules()
+    assert _claude_md().exists()
+    assert "Dark mode." in _claude_md().read_text(encoding="utf-8")
+
+
+def test_scaffold_claude_md_has_no_global_rules_import(tmp_path):
+    """Global rules now live in ~/.claude/CLAUDE.md, not a per-project @import."""
+    project = scaffold_project("myproject", root=tmp_path)
+    text = (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "@~/.dante/knowledge/rules.yaml" not in text
